@@ -9,8 +9,12 @@ use bevy::{
 };
 use crossbeam_channel::{Receiver, Sender};
 
+use crate::TEXTURE_SIZE;
+
 // Define the size of our buffer - one point per degree in a circle
-const BUFFER_LEN: usize = 360;
+// const BUFFER_LEN: usize = 360;
+// const TEXTURE_SIZE: u32 = 256;
+const BUFFER_LEN: usize = TEXTURE_SIZE * TEXTURE_SIZE;
 
 // Resource wrapper for receiving data in the main world
 #[derive(Resource, Deref)]
@@ -20,24 +24,37 @@ pub struct MainWorldReceiver(Receiver<Vec<f32>>);
 #[derive(Resource, Deref)]
 pub struct RenderWorldSender(Sender<Vec<f32>>);
 
-// System that receives and processes data from the GPU
-// pub fn receive(receiver: Res<MainWorldReceiver>) {
-//     if let Ok(data) = receiver.try_recv() {
-//         println!("Received circle data: {data:?}");
-//     }
-// }
+
+#[derive(Resource, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+struct CircleUniforms {
+    size: u32,
+    radius: f32,
+}
 
 // Plugin that sets up GPU computation and data readback
 pub struct GpuReadbackPlugin;
 impl Plugin for GpuReadbackPlugin {
-    fn build(&self, _app: &mut App) {}
+    fn build(&self, app: &mut App) {
+        // Add to main app
+        app.insert_resource(CircleUniforms {
+            size: 20,
+            radius: 0.5,
+        });
+
+        // Add to render app also
+        if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
+            render_app.insert_resource(CircleUniforms {
+                size: 20,
+                radius: 0.5,
+            });
+        }
+    }
 
     fn finish(&self, app: &mut App) {
-        // Create a channel for communication between main world and render world
         let (s, r) = crossbeam_channel::unbounded();
         app.insert_resource(MainWorldReceiver(r));
 
-        // Configure the render app with necessary resources and systems
         let render_app = app.sub_app_mut(RenderApp);
         render_app
             .insert_resource(RenderWorldSender(s))
@@ -46,16 +63,13 @@ impl Plugin for GpuReadbackPlugin {
             .add_systems(
                 Render,
                 (
-                    // System to prepare GPU bind groups if they don't exist
                     prepare_bind_group
                         .in_set(RenderSet::PrepareBindGroups)
                         .run_if(not(resource_exists::<GpuBufferBindGroup>)),
-                    // System to map and read buffer after rendering
                     map_and_read_buffer.after(RenderSet::Render),
                 ),
             );
 
-        // Add compute node to render graph
         render_app
             .world_mut()
             .resource_mut::<RenderGraph>()
@@ -68,12 +82,14 @@ impl Plugin for GpuReadbackPlugin {
 struct Buffers {
     gpu_buffer: BufferVec<f32>,  // Buffer on GPU for computation
     cpu_buffer: Buffer,          // Buffer on CPU for reading results
+    uniform_buffer: Buffer,
 }
 
 impl FromWorld for Buffers {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.resource::<RenderDevice>();
         let render_queue = world.resource::<RenderQueue>();
+        let uniforms = world.resource::<CircleUniforms>();
 
         // Initialize GPU buffer with zeros
         let mut gpu_buffer = BufferVec::new(BufferUsages::STORAGE | BufferUsages::COPY_SRC);
@@ -90,13 +106,28 @@ impl FromWorld for Buffers {
             mapped_at_creation: false,
         });
 
+        // Create uniform buffer
+        let uniform_buffer = render_device.create_buffer(&BufferDescriptor {
+            label: Some("circle_uniforms"),
+            size: std::mem::size_of::<CircleUniforms>() as u64,
+            usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        // Write initial uniforms to buffer
+        render_queue.write_buffer(
+            &uniform_buffer,
+            0,
+            bytemuck::cast_slice(&[*uniforms]),  // Cast the entire uniform struct
+        );
+
         Self {
             gpu_buffer,
             cpu_buffer,
+            uniform_buffer,
         }
     }
 }
-
 // Resource wrapper for GPU bind group
 #[derive(Resource)]
 struct GpuBufferBindGroup(BindGroup);
@@ -107,25 +138,33 @@ fn prepare_bind_group(
     pipeline: Res<ComputePipeline>,
     render_device: Res<RenderDevice>,
     buffers: Res<Buffers>,
-) {
+) {  // Remove the -> impl IntoSystemConfigs
     let bind_group = render_device.create_bind_group(
         None,
         &pipeline.layout,
-        &BindGroupEntries::single(
-            buffers
-                .gpu_buffer
-                .binding()
-                .expect("Buffer should have already been uploaded to the gpu"),
-        ),
+        &[
+            BindGroupEntry {
+                binding: 0,
+                resource: buffers
+                    .gpu_buffer
+                    .binding()
+                    .expect("Buffer should be on GPU")
+                    .clone(),
+            },
+            BindGroupEntry {
+                binding: 1,
+                resource: buffers.uniform_buffer.as_entire_binding(),
+            },
+        ],
     );
     commands.insert_resource(GpuBufferBindGroup(bind_group));
 }
 
-// Resource containing compute pipeline configuration
+// Add Resource derive and make struct fields public
 #[derive(Resource)]
 struct ComputePipeline {
-    layout: BindGroupLayout,
-    pipeline: CachedComputePipelineId,
+    pub layout: BindGroupLayout,
+    pub pipeline: CachedComputePipelineId,
 }
 
 impl FromWorld for ComputePipeline {
@@ -135,10 +174,30 @@ impl FromWorld for ComputePipeline {
         // Create bind group layout for compute shader
         let layout = render_device.create_bind_group_layout(
             None,
-            &BindGroupLayoutEntries::single(
-                ShaderStages::COMPUTE,
-                storage_buffer::<Vec<f32>>(false),
-            ),
+            &[
+                // Storage buffer binding
+                BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: ShaderStages::COMPUTE,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // Uniform buffer binding
+                BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: ShaderStages::COMPUTE,
+                    ty: BindingType::Buffer {
+                        ty: BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
         );
         
         // Load and configure compute shader
@@ -198,6 +257,8 @@ struct ComputeNodeLabel;
 // Node that performs GPU computation
 #[derive(Default)]
 struct ComputeNode {}
+
+// Update the ComputeNode implementation
 impl render_graph::Node for ComputeNode {
     fn run(
         &self,
@@ -208,29 +269,25 @@ impl render_graph::Node for ComputeNode {
         let pipeline_cache = world.resource::<PipelineCache>();
         let pipeline = world.resource::<ComputePipeline>();
         let bind_group = world.resource::<GpuBufferBindGroup>();
+        let uniforms = world.resource::<CircleUniforms>();
+        let buffers = world.resource::<Buffers>();
 
-        // Execute compute shader if pipeline is ready
         if let Some(init_pipeline) = pipeline_cache.get_compute_pipeline(pipeline.pipeline) {
-            let mut pass =
-                render_context
-                    .command_encoder()
-                    .begin_compute_pass(&ComputePassDescriptor {
-                        label: Some("Circle generation compute pass"),
-                        ..default()
-                    });
+            let mut pass = render_context
+                .command_encoder()
+                .begin_compute_pass(&ComputePassDescriptor {
+                    label: Some("Circle generation compute pass"),
+                    ..default()
+                });
 
             pass.set_bind_group(0, &bind_group.0, &[]);
             pass.set_pipeline(init_pipeline);
-            pass.dispatch_workgroups(BUFFER_LEN as u32, 1, 1);
+            pass.dispatch_workgroups(uniforms.size, uniforms.size, 1);
         }
 
-        // Copy results from GPU buffer to CPU buffer
-        let buffers = world.resource::<Buffers>();
+        // Copy data from GPU buffer to CPU buffer for readback
         render_context.command_encoder().copy_buffer_to_buffer(
-            buffers
-                .gpu_buffer
-                .buffer()
-                .expect("Buffer should have already been uploaded to the gpu"),
+            &buffers.gpu_buffer.buffer().unwrap(),
             0,
             &buffers.cpu_buffer,
             0,
