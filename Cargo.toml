@@ -1,0 +1,9 @@
+[package]
+name = "bevy_compute_shader"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = { version = "0.14.2", features = ["dynamic_linking"] }
+bytemuck = "1.20.0"
+crossbeam-channel = "0.5.1"
