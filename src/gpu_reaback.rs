@@ -1,3 +1,4 @@
+//gpu_readback.rs
 use bevy::{
     prelude::*,
     render::{
@@ -8,15 +9,7 @@ use bevy::{
     },
 };
 use crossbeam_channel::{Receiver, Sender};
-
-use crate::{TEXTURE_SIZE, CIRCLE_RADIUS};
-
-// Define the size of our buffer - one point per degree in a circle
-// const BUFFER_LEN: usize = 360;
-// const TEXTURE_SIZE: u32 = 256;
-// const BUFFER_LEN: usize = TEXTURE_SIZE * TEXTURE_SIZE;
-const BUFFER_LEN: usize = TEXTURE_SIZE * TEXTURE_SIZE;
-
+use bevy::render::extract_resource::{ExtractResource, ExtractResourcePlugin};
 
 // Resource wrapper for receiving data in the main world
 #[derive(Resource, Deref)]
@@ -26,37 +19,49 @@ pub struct MainWorldReceiver(Receiver<Vec<f32>>);
 #[derive(Resource, Deref)]
 pub struct RenderWorldSender(Sender<Vec<f32>>);
 
-
-#[derive(Resource, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Resource, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, ExtractResource)]
 #[repr(C)]
 pub struct CircleUniforms {
     pub size: u32,
     pub radius: f32,
 }
 
-impl Default for CircleUniforms {
-    fn default() -> Self {
-        Self {
-            size: TEXTURE_SIZE as u32,
-            radius: CIRCLE_RADIUS,
-        }
+#[derive(Resource)]
+struct BufferNeedsRecreation(bool);
+
+// Plugin that sets up GPU computation and data readback
+pub struct GpuReadbackPlugin {
+    size: u32,
+    radius: f32,
+}
+
+impl GpuReadbackPlugin {
+    pub fn new(size: u32, radius: f32) -> Self {
+        Self { size, radius }
     }
 }
 
-// Plugin that sets up GPU computation and data readback
-pub struct GpuReadbackPlugin;
 impl Plugin for GpuReadbackPlugin {
     fn build(&self, app: &mut App) {
-        // Add to main app
-        app.insert_resource(CircleUniforms::default());
+        app.insert_resource(CircleUniforms {
+            size: self.size,
+            radius: self.radius,
+        })
+        .add_plugins(ExtractResourcePlugin::<CircleUniforms>::default());  // Add this line
 
-        // Add to render app
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
             render_app
-                .insert_resource(CircleUniforms::default())
+                .insert_resource(CircleUniforms {
+                    size: self.size,
+                    radius: self.radius,
+                })
+                .insert_resource(BufferNeedsRecreation(false))
                 .add_systems(
                     Render,
-                    update_circle_uniforms.in_set(RenderSet::Prepare),
+                    (
+                        update_circle_uniforms.in_set(RenderSet::Prepare),
+                        recreate_buffers_if_needed.in_set(RenderSet::Prepare),
+                    ),
                 );
         }
     }
@@ -75,7 +80,7 @@ impl Plugin for GpuReadbackPlugin {
                 (
                     prepare_bind_group
                         .in_set(RenderSet::PrepareBindGroups)
-                        .run_if(not(resource_exists::<GpuBufferBindGroup>)),
+                        .run_if(|buffers: Res<Buffers>| buffers.is_changed()),
                     map_and_read_buffer.after(RenderSet::Render),
                 ),
             );
@@ -86,14 +91,18 @@ impl Plugin for GpuReadbackPlugin {
             .add_node(ComputeNodeLabel, ComputeNode::default());
     }
 }
-
 fn update_circle_uniforms(
     uniforms: Res<CircleUniforms>,
     render_device: Res<RenderDevice>,
     render_queue: Res<RenderQueue>,
     buffers: Res<Buffers>,
+    mut needs_recreation: ResMut<BufferNeedsRecreation>,
 ) {
-    // Update GPU buffer with current uniforms
+    // Check if uniforms have changed (will be true when extracted from main world)
+    if uniforms.is_changed() || uniforms.size != buffers.current_size {
+        needs_recreation.0 = true;
+    }
+    
     render_queue.write_buffer(
         &buffers.uniform_buffer,
         0,
@@ -101,13 +110,13 @@ fn update_circle_uniforms(
     );
 }
 
-
 // Resource containing both GPU and CPU buffers
 #[derive(Resource)]
 pub struct Buffers {
-    gpu_buffer: BufferVec<f32>,  // Buffer on GPU for computation
-    cpu_buffer: Buffer,          // Buffer on CPU for reading results
+    gpu_buffer: BufferVec<f32>, // Buffer on GPU for computation
+    cpu_buffer: Buffer,         // Buffer on CPU for reading results
     pub uniform_buffer: Buffer,
+    current_size: u32,
 }
 
 impl FromWorld for Buffers {
@@ -115,23 +124,21 @@ impl FromWorld for Buffers {
         let render_device = world.resource::<RenderDevice>();
         let render_queue = world.resource::<RenderQueue>();
         let uniforms = world.resource::<CircleUniforms>();
+        let buffer_size = (uniforms.size * uniforms.size) as usize;
 
-        // Initialize GPU buffer with zeros
         let mut gpu_buffer = BufferVec::new(BufferUsages::STORAGE | BufferUsages::COPY_SRC);
-        for _ in 0..BUFFER_LEN {
+        for _ in 0..buffer_size {
             gpu_buffer.push(0.0);
         }
         gpu_buffer.write_buffer(render_device, render_queue);
 
-        // Create CPU buffer for reading back results
         let cpu_buffer = render_device.create_buffer(&BufferDescriptor {
             label: Some("readback_buffer"),
-            size: (BUFFER_LEN * std::mem::size_of::<f32>()) as u64,
+            size: (buffer_size * std::mem::size_of::<f32>()) as u64,
             usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
-        // Create uniform buffer
         let uniform_buffer = render_device.create_buffer(&BufferDescriptor {
             label: Some("circle_uniforms"),
             size: std::mem::size_of::<CircleUniforms>() as u64,
@@ -139,20 +146,56 @@ impl FromWorld for Buffers {
             mapped_at_creation: false,
         });
 
-        // Write initial uniforms to buffer
-        render_queue.write_buffer(
-            &uniform_buffer,
-            0,
-            bytemuck::cast_slice(&[*uniforms]),  // Cast the entire uniform struct
-        );
+        render_queue.write_buffer(&uniform_buffer, 0, bytemuck::cast_slice(&[*uniforms]));
 
         Self {
             gpu_buffer,
             cpu_buffer,
             uniform_buffer,
+            current_size: uniforms.size,
         }
     }
 }
+
+fn recreate_buffers_if_needed(
+    render_device: Res<RenderDevice>,
+    render_queue: Res<RenderQueue>,
+    uniforms: Res<CircleUniforms>,
+    mut buffers: ResMut<Buffers>,
+    mut needs_recreation: ResMut<BufferNeedsRecreation>,
+    mut commands: Commands,
+) {
+    if needs_recreation.0 {
+        let buffer_size = (uniforms.size * uniforms.size) as usize;
+
+        // Recreate GPU buffer
+        let mut new_gpu_buffer = BufferVec::new(BufferUsages::STORAGE | BufferUsages::COPY_SRC);
+        new_gpu_buffer.reserve(buffer_size, &render_device);
+        for _ in 0..buffer_size {
+            new_gpu_buffer.push(0.0);
+        }
+        new_gpu_buffer.write_buffer(&render_device, &render_queue);
+
+        // Recreate CPU buffer
+        let new_cpu_buffer = render_device.create_buffer(&BufferDescriptor {
+            label: Some("readback_buffer"),
+            size: (buffer_size * std::mem::size_of::<f32>()) as u64,
+            usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        // Update buffers
+        buffers.gpu_buffer = new_gpu_buffer;
+        buffers.cpu_buffer = new_cpu_buffer;
+        buffers.current_size = uniforms.size;
+
+        // Remove existing bind group to force recreation
+        commands.remove_resource::<GpuBufferBindGroup>();
+        
+        needs_recreation.0 = false;
+    }
+}
+
 // Resource wrapper for GPU bind group
 #[derive(Resource)]
 struct GpuBufferBindGroup(BindGroup);
@@ -163,7 +206,8 @@ fn prepare_bind_group(
     pipeline: Res<ComputePipeline>,
     render_device: Res<RenderDevice>,
     buffers: Res<Buffers>,
-) {  // Remove the -> impl IntoSystemConfigs
+) {
+    // Remove the -> impl IntoSystemConfigs
     let bind_group = render_device.create_bind_group(
         None,
         &pipeline.layout,
@@ -195,7 +239,7 @@ struct ComputePipeline {
 impl FromWorld for ComputePipeline {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.resource::<RenderDevice>();
-        
+
         // Create bind group layout for compute shader
         let layout = render_device.create_bind_group_layout(
             None,
@@ -224,7 +268,7 @@ impl FromWorld for ComputePipeline {
                 },
             ],
         );
-        
+
         // Load and configure compute shader
         let shader = world.load_asset("shaders/gpu_circle.wgsl");
         let pipeline_cache = world.resource::<PipelineCache>();
@@ -298,12 +342,13 @@ impl render_graph::Node for ComputeNode {
         let buffers = world.resource::<Buffers>();
 
         if let Some(init_pipeline) = pipeline_cache.get_compute_pipeline(pipeline.pipeline) {
-            let mut pass = render_context
-                .command_encoder()
-                .begin_compute_pass(&ComputePassDescriptor {
-                    label: Some("Circle generation compute pass"),
-                    ..default()
-                });
+            let mut pass =
+                render_context
+                    .command_encoder()
+                    .begin_compute_pass(&ComputePassDescriptor {
+                        label: Some("Circle generation compute pass"),
+                        ..default()
+                    });
 
             pass.set_bind_group(0, &bind_group.0, &[]);
             pass.set_pipeline(init_pipeline);
@@ -316,7 +361,7 @@ impl render_graph::Node for ComputeNode {
             0,
             &buffers.cpu_buffer,
             0,
-            (BUFFER_LEN * std::mem::size_of::<f32>()) as u64,
+            ((uniforms.size * uniforms.size) as usize * std::mem::size_of::<f32>()) as u64,
         );
 
         Ok(())
