@@ -9,12 +9,14 @@ use bevy::{
 };
 use crossbeam_channel::{Receiver, Sender};
 
-use crate::TEXTURE_SIZE;
+use crate::{TEXTURE_SIZE, CIRCLE_RADIUS};
 
 // Define the size of our buffer - one point per degree in a circle
 // const BUFFER_LEN: usize = 360;
 // const TEXTURE_SIZE: u32 = 256;
+// const BUFFER_LEN: usize = TEXTURE_SIZE * TEXTURE_SIZE;
 const BUFFER_LEN: usize = TEXTURE_SIZE * TEXTURE_SIZE;
+
 
 // Resource wrapper for receiving data in the main world
 #[derive(Resource, Deref)]
@@ -27,9 +29,18 @@ pub struct RenderWorldSender(Sender<Vec<f32>>);
 
 #[derive(Resource, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
-struct CircleUniforms {
-    size: u32,
-    radius: f32,
+pub struct CircleUniforms {
+    pub size: u32,
+    pub radius: f32,
+}
+
+impl Default for CircleUniforms {
+    fn default() -> Self {
+        Self {
+            size: TEXTURE_SIZE as u32,
+            radius: CIRCLE_RADIUS,
+        }
+    }
 }
 
 // Plugin that sets up GPU computation and data readback
@@ -37,17 +48,16 @@ pub struct GpuReadbackPlugin;
 impl Plugin for GpuReadbackPlugin {
     fn build(&self, app: &mut App) {
         // Add to main app
-        app.insert_resource(CircleUniforms {
-            size: 20,
-            radius: 0.5,
-        });
+        app.insert_resource(CircleUniforms::default());
 
-        // Add to render app also
+        // Add to render app
         if let Some(render_app) = app.get_sub_app_mut(RenderApp) {
-            render_app.insert_resource(CircleUniforms {
-                size: 20,
-                radius: 0.5,
-            });
+            render_app
+                .insert_resource(CircleUniforms::default())
+                .add_systems(
+                    Render,
+                    update_circle_uniforms.in_set(RenderSet::Prepare),
+                );
         }
     }
 
@@ -77,12 +87,27 @@ impl Plugin for GpuReadbackPlugin {
     }
 }
 
+fn update_circle_uniforms(
+    uniforms: Res<CircleUniforms>,
+    render_device: Res<RenderDevice>,
+    render_queue: Res<RenderQueue>,
+    buffers: Res<Buffers>,
+) {
+    // Update GPU buffer with current uniforms
+    render_queue.write_buffer(
+        &buffers.uniform_buffer,
+        0,
+        bytemuck::cast_slice(&[*uniforms]),
+    );
+}
+
+
 // Resource containing both GPU and CPU buffers
 #[derive(Resource)]
-struct Buffers {
+pub struct Buffers {
     gpu_buffer: BufferVec<f32>,  // Buffer on GPU for computation
     cpu_buffer: Buffer,          // Buffer on CPU for reading results
-    uniform_buffer: Buffer,
+    pub uniform_buffer: Buffer,
 }
 
 impl FromWorld for Buffers {
