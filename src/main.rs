@@ -1,21 +1,10 @@
 use bevy::prelude::*;
-use gpu_reaback::{CircleUniforms, GpuReadbackPlugin, MainWorldReceiver};
+use gpu_reaback::{CircleSettings, CircleSizeChanged, CircleUniforms, GpuReadbackPlugin, MainWorldReceiver};
 
 mod gpu_reaback;
 
 pub const INITIAL_SIZE: u32 = 40;
 pub const INITIAL_RADIUS: f32 = 0.1;
-#[derive(Resource)]
-pub struct CircleSettings {
-    size: u32,
-    radius: f32,
-}
-
-#[derive(Event)]
-pub struct CircleSizeChanged {
-    new_size: u32,
-    new_radius: f32,
-}
 
 fn main() {
     App::new()
@@ -33,7 +22,7 @@ fn main() {
             Update,
             (
                 receive,
-                handle_size_changes, // Add system to handle size changes
+                // handle_size_changes, // Add system to handle size changes
                 keyboard_input,      // Example system to change size with keyboard
             ),
         )
@@ -76,19 +65,6 @@ fn keyboard_input(
             new_size,
             new_radius,
         });
-    }
-}
-
-fn handle_size_changes(
-    mut events: EventReader<CircleSizeChanged>,
-    mut settings: ResMut<CircleSettings>,
-    mut uniforms: ResMut<CircleUniforms>,
-) {
-    for event in events.read() {
-        settings.size = event.new_size;
-        settings.radius = event.new_radius;
-        uniforms.size = event.new_size;
-        uniforms.radius = event.new_radius;
     }
 }
 
