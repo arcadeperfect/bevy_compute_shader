@@ -10,6 +10,8 @@ use bevy::{
 };
 use crossbeam_channel::{Receiver, Sender};
 
+use crate::events::CircleSizeChanged;
+
 // This struct represents the data we'll send to our GPU shader
 // It needs special derive macros to make it compatible with GPU memory
 // Pod and Zeroable ensure it can be safely copied to GPU memory
@@ -36,14 +38,6 @@ pub struct MainWorldReceiver(Receiver<Vec<f32>>);
 
 #[derive(Resource, Deref)]
 pub struct RenderWorldSender(Sender<Vec<f32>>);
-
-// Event that gets fired when we want to change the circle size
-// This lets different parts of our app react to size changes
-#[derive(Event)]
-pub struct CircleSizeChanged {
-    pub new_size: u32,
-    pub new_radius: f32,
-}
 
 // Main plugin struct that orchestrates our GPU computation system
 pub struct GpuReadbackPlugin {
@@ -76,7 +70,7 @@ impl Plugin for GpuReadbackPlugin {
                     size: self.size,
                     radius: self.radius,
                 })
-                .insert_resource(BufferNeedsRecreation(false))
+                .insert_resource(DirtyBufferFlag(false))
                 .add_systems(
                     Render,
                     (
@@ -125,9 +119,15 @@ impl Plugin for GpuReadbackPlugin {
 // - uniform_buffer: Stores our uniform values (size and radius)
 #[derive(Resource)]
 pub struct Buffers {
+    // In this example, we want to write a `Vec<f32>` to a `Buffer`. `BufferVec` is a wrapper around a `Buffer`
+    // that will make sure the data is correctly aligned for the gpu and will simplify uploading the data to the gpu.
     gpu_buffer: BufferVec<f32>,
+    // The buffer that will be read on the cpu.
+    // The `gpu_buffer` will be copied to this buffer every frame
     cpu_buffer: Buffer,
+    // The buffer that holds our uniform values
     pub uniform_buffer: Buffer,
+    // The current size of the buffer, required to check if the buffer needs to be recreated
     current_size: u32,
 }
 
@@ -146,7 +146,12 @@ impl FromWorld for Buffers {
         }
         gpu_buffer.write_buffer(render_device, render_queue);
 
-        // Create CPU buffer for reading back results
+        // For portability reasons, WebGPU draws a distinction between memory that is
+        // accessible by the CPU and memory that is accessible by the GPU. Only
+        // buffers accessible by the CPU can be mapped and accessed by the CPU and
+        // only buffers visible to the GPU can be used in shaders. In order to get
+        // data from the GPU, we need to use `CommandEncoder::copy_buffer_to_buffer` to
+        // copy the buffer modified by the GPU into a mappable, CPU-accessible buffer
         let cpu_buffer = render_device.create_buffer(&BufferDescriptor {
             label: Some("readback_buffer"),
             size: (buffer_size * std::mem::size_of::<f32>()) as u64,
@@ -162,6 +167,9 @@ impl FromWorld for Buffers {
             mapped_at_creation: false,
         });
 
+        // Initialize uniform buffer with initial values.
+        // The shader needs these values (size and radius) from the start,
+        // unlike the storage buffer which is written to by the shader
         render_queue.write_buffer(&uniform_buffer, 0, bytemuck::cast_slice(&[*uniforms]));
 
         Self {
@@ -173,6 +181,40 @@ impl FromWorld for Buffers {
     }
 }
 
+// Wrapper for the bind group that connects our buffers to the shader
+#[derive(Resource)]
+struct GpuBufferBindGroup(BindGroup);
+
+// System that creates the bind group connecting our buffers to the shader
+fn prepare_bind_group(
+    mut commands: Commands,
+    pipeline: Res<ComputePipeline>,
+    render_device: Res<RenderDevice>,
+    buffers: Res<Buffers>,
+) {
+    let bind_group = render_device.create_bind_group(
+        None,
+        &pipeline.layout,
+        &[
+            // Bind our storage buffer
+            BindGroupEntry {
+                binding: 0,
+                resource: buffers
+                    .gpu_buffer
+                    .binding()
+                    // We already did it when creating the buffer so this should never happen
+                    .expect("Buffer should be on GPU")
+                    .clone(),
+            },
+            // Bind our uniform buffer
+            BindGroupEntry {
+                binding: 1,
+                resource: buffers.uniform_buffer.as_entire_binding(),
+            },
+        ],
+    );
+    commands.insert_resource(GpuBufferBindGroup(bind_group));
+}
 // Holds the compute pipeline configuration including shader layout
 #[derive(Resource)]
 struct ComputePipeline {
@@ -184,7 +226,6 @@ struct ComputePipeline {
 impl FromWorld for ComputePipeline {
     fn from_world(world: &mut World) -> Self {
         let render_device = world.resource::<RenderDevice>();
-
         // Define how our shader will access buffers
         // We need two bindings:
         // 1. A storage buffer for output data
@@ -232,13 +273,9 @@ impl FromWorld for ComputePipeline {
     }
 }
 
-// Wrapper for the bind group that connects our buffers to the shader
-#[derive(Resource)]
-struct GpuBufferBindGroup(BindGroup);
-
 // Flag to indicate when buffers need to be recreated (e.g., when size changes)
 #[derive(Resource)]
-struct BufferNeedsRecreation(bool);
+struct DirtyBufferFlag(bool);
 
 // Label for our compute node in the render graph
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
@@ -298,7 +335,7 @@ fn recreate_buffers_if_needed(
     render_queue: Res<RenderQueue>,
     uniforms: Res<CircleUniforms>,
     mut buffers: ResMut<Buffers>,
-    mut needs_recreation: ResMut<BufferNeedsRecreation>,
+    mut needs_recreation: ResMut<DirtyBufferFlag>,
     mut commands: Commands,
 ) {
     if needs_recreation.0 {
@@ -331,42 +368,12 @@ fn recreate_buffers_if_needed(
     }
 }
 
-// System that creates the bind group connecting our buffers to the shader
-fn prepare_bind_group(
-    mut commands: Commands,
-    pipeline: Res<ComputePipeline>,
-    render_device: Res<RenderDevice>,
-    buffers: Res<Buffers>,
-) {
-    let bind_group = render_device.create_bind_group(
-        None,
-        &pipeline.layout,
-        &[
-            // Bind our storage buffer
-            BindGroupEntry {
-                binding: 0,
-                resource: buffers
-                    .gpu_buffer
-                    .binding()
-                    .expect("Buffer should be on GPU")
-                    .clone(),
-            },
-            // Bind our uniform buffer
-            BindGroupEntry {
-                binding: 1,
-                resource: buffers.uniform_buffer.as_entire_binding(),
-            },
-        ],
-    );
-    commands.insert_resource(GpuBufferBindGroup(bind_group));
-}
-
 // System that updates uniform values and checks if buffers need recreation
 fn update_circle_uniforms(
     uniforms: Res<CircleUniforms>,
     render_queue: Res<RenderQueue>,
     buffers: Res<Buffers>,
-    mut needs_recreation: ResMut<BufferNeedsRecreation>,
+    mut needs_recreation: ResMut<DirtyBufferFlag>,
 ) {
     // Check if we need to recreate buffers
     if uniforms.is_changed() || uniforms.size != buffers.current_size {
@@ -425,7 +432,7 @@ fn map_and_read_buffer(
     {
         // Get access to the mapped memory
         let buffer_view = buffer_slice.get_mapped_range();
-        
+
         // Convert the raw bytes into f32 values
         // We process the data in chunks of f32 size (4 bytes)
         let data = buffer_view

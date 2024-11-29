@@ -1,5 +1,6 @@
 use bevy::prelude::*;
-use gpu_readback::{CircleSettings, CircleSizeChanged, GpuReadbackPlugin, MainWorldReceiver};
+use events::CircleSizeChanged;
+use gpu_readback::{CircleSettings,GpuReadbackPlugin, MainWorldReceiver};
 
 use bevy::render::{
     render_asset::RenderAssetUsages,
@@ -8,6 +9,7 @@ use bevy::render::{
 };
 
 mod gpu_readback;
+mod events;
 
 pub const INITIAL_SIZE: u32 = 400;
 pub const INITIAL_RADIUS: f32 = 0.1;
@@ -118,12 +120,15 @@ fn keyboard_input(
     }
 }
 
+/// This system will poll the channel and try to get the data sent from the render world
 fn receive(
     receiver: Res<MainWorldReceiver>,
     settings: Res<CircleSettings>,
     mut texture: ResMut<GpuTexture>,
     mut images: ResMut<Assets<Image>>,
 ) {
+    // We don't want to block the main world on this,
+    // so we use try_recv which attempts to receive without blocking
     if let Ok(data) = receiver.try_recv() {
         let size = settings.size as usize;
         let expected_len = size * size;
