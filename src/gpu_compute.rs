@@ -12,6 +12,8 @@ use crossbeam_channel::{Receiver, Sender};
 
 use crate::events::CircleSizeChanged;
 
+const WORKGROUP_SIZE: u32 = 8;
+
 // This struct represents the data we'll send to our GPU shader
 // It needs special derive macros to make it compatible with GPU memory
 // Pod and Zeroable ensure it can be safely copied to GPU memory
@@ -19,6 +21,13 @@ use crate::events::CircleSizeChanged;
 #[derive(Resource, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, ExtractResource)]
 #[repr(C)]
 pub struct CircleUniforms {
+    pub size: u32,
+    pub radius: f32,
+}
+
+#[derive(Resource, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, ExtractResource)]
+#[repr(C)]
+pub struct BlurUniforms {
     pub size: u32,
     pub radius: f32,
 }
@@ -51,6 +60,12 @@ impl GpuReadbackPlugin {
     }
 }
 
+#[derive(Resource, Clone, ExtractResource)]
+pub struct ComputeSettings {
+    pub enable_compute: bool,
+    pub enable_readback: bool,
+}
+
 // Plugin implementation - this is where we set up all our systems and resources
 impl Plugin for GpuReadbackPlugin {
     fn build(&self, app: &mut App) {
@@ -59,7 +74,16 @@ impl Plugin for GpuReadbackPlugin {
             size: self.size,
             radius: self.radius,
         })
+        .insert_resource(CircleUniforms {
+            size: self.size,
+            radius: self.radius,
+        })
+        .insert_resource(ComputeSettings {
+            enable_compute: true,
+            enable_readback: true,
+        })
         .add_plugins(ExtractResourcePlugin::<CircleUniforms>::default())
+        .add_plugins(ExtractResourcePlugin::<ComputeSettings>::default())
         .add_systems(Update, handle_size_changes);
 
         // Set up resources and systems in the render world
@@ -69,6 +93,10 @@ impl Plugin for GpuReadbackPlugin {
                 .insert_resource(CircleUniforms {
                     size: self.size,
                     radius: self.radius,
+                })
+                .insert_resource(ComputeSettings {
+                    enable_compute: true,
+                    enable_readback: true,
                 })
                 .insert_resource(DirtyBufferFlag(false))
                 .add_systems(
@@ -121,7 +149,8 @@ impl Plugin for GpuReadbackPlugin {
 pub struct Buffers {
     // In this example, we want to write a `Vec<f32>` to a `Buffer`. `BufferVec` is a wrapper around a `Buffer`
     // that will make sure the data is correctly aligned for the gpu and will simplify uploading the data to the gpu.
-    gpu_buffer: BufferVec<f32>,
+    gpu_buffer_a: BufferVec<f32>,
+    // gpu_buffer_b: BufferVec<f32>,
     // The buffer that will be read on the cpu.
     // The `gpu_buffer` will be copied to this buffer every frame
     cpu_buffer: Buffer,
@@ -140,11 +169,14 @@ impl FromWorld for Buffers {
         let buffer_size = (uniforms.size * uniforms.size) as usize;
 
         // Create GPU buffer for compute shader output
-        let mut gpu_buffer = BufferVec::new(BufferUsages::STORAGE | BufferUsages::COPY_SRC);
+        let mut gpu_buffer_a = BufferVec::new(BufferUsages::STORAGE | BufferUsages::COPY_SRC);
+        // let mut gpu_buffer_b = BufferVec::new(BufferUsages::STORAGE | BufferUsages::COPY_SRC);
+        
         for _ in 0..buffer_size {
-            gpu_buffer.push(0.0);
+            gpu_buffer_a.push(0.0);
         }
-        gpu_buffer.write_buffer(render_device, render_queue);
+
+        gpu_buffer_a.write_buffer(render_device, render_queue);
 
         // For portability reasons, WebGPU draws a distinction between memory that is
         // accessible by the CPU and memory that is accessible by the GPU. Only
@@ -173,7 +205,7 @@ impl FromWorld for Buffers {
         render_queue.write_buffer(&uniform_buffer, 0, bytemuck::cast_slice(&[*uniforms]));
 
         Self {
-            gpu_buffer,
+            gpu_buffer_a,
             cpu_buffer,
             uniform_buffer,
             current_size: uniforms.size,
@@ -200,7 +232,7 @@ fn prepare_bind_group(
             BindGroupEntry {
                 binding: 0,
                 resource: buffers
-                    .gpu_buffer
+                    .gpu_buffer_a
                     .binding()
                     // We already did it when creating the buffer so this should never happen
                     .expect("Buffer should be on GPU")
@@ -299,26 +331,34 @@ impl render_graph::Node for ComputeNode {
         let bind_group = world.resource::<GpuBufferBindGroup>();
         let uniforms = world.resource::<CircleUniforms>();
         let buffers = world.resource::<Buffers>();
+        let settings = world.resource::<ComputeSettings>();
 
         // Run our compute shader
-        if let Some(init_pipeline) = pipeline_cache.get_compute_pipeline(pipeline.pipeline) {
-            let mut pass =
-                render_context
-                    .command_encoder()
-                    .begin_compute_pass(&ComputePassDescriptor {
-                        label: Some("Circle generation compute pass"),
-                        ..default()
-                    });
+        // println!("enable compute: {:?}", settings.enable_compute);
+        if settings.enable_compute {
+            if let Some(init_pipeline) = pipeline_cache.get_compute_pipeline(pipeline.pipeline) {
+                let mut pass =
+                    render_context
+                        .command_encoder()
+                        .begin_compute_pass(&ComputePassDescriptor {
+                            label: Some("Circle generation compute pass"),
+                            ..default()
+                        });
 
-            pass.set_bind_group(0, &bind_group.0, &[]);
-            pass.set_pipeline(init_pipeline);
-            // Dispatch one workgroup per pixel in our output
-            pass.dispatch_workgroups(uniforms.size, uniforms.size, 1);
+                pass.set_bind_group(0, &bind_group.0, &[]);
+                pass.set_pipeline(init_pipeline);
+                // Dispatch one workgroup per pixel in our output
+                pass.dispatch_workgroups(
+                    (uniforms.size + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE,
+                    (uniforms.size + WORKGROUP_SIZE - 1) / WORKGROUP_SIZE,
+                    1,
+                );
+            }
         }
 
         // Copy the results from GPU to CPU buffer for reading
         render_context.command_encoder().copy_buffer_to_buffer(
-            &buffers.gpu_buffer.buffer().unwrap(),
+            &buffers.gpu_buffer_a.buffer().unwrap(),
             0,
             &buffers.cpu_buffer,
             0,
@@ -357,7 +397,7 @@ fn recreate_buffers_if_needed(
         });
 
         // Update our buffers resource
-        buffers.gpu_buffer = new_gpu_buffer;
+        buffers.gpu_buffer_a = new_gpu_buffer;
         buffers.cpu_buffer = new_cpu_buffer;
         buffers.current_size = uniforms.size;
 
@@ -408,7 +448,13 @@ fn map_and_read_buffer(
     render_device: Res<RenderDevice>,
     buffers: Res<Buffers>,
     sender: Res<RenderWorldSender>,
+    compute_settings: Res<ComputeSettings>,
 ) {
+    // println!("enable readback: {:?}", compute_settings.enable_readback);
+    if !compute_settings.enable_readback {
+        return;
+    }
+
     // Get a slice of the buffer we want to read
     let buffer_slice = buffers.cpu_buffer.slice(..);
 
