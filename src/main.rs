@@ -1,6 +1,10 @@
+use bevy::diagnostic::FrameTimeDiagnosticsPlugin;
+use bevy::diagnostic::LogDiagnosticsPlugin;
 use bevy::prelude::*;
+use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use events::CircleSizeChanged;
-use gpu_readback::{CircleSettings,GpuReadbackPlugin, MainWorldReceiver};
+use gpu_compute::ComputeSettings;
+use gpu_compute::{CircleSettings, GpuReadbackPlugin, MainWorldReceiver};
 
 use bevy::render::{
     render_asset::RenderAssetUsages,
@@ -8,8 +12,8 @@ use bevy::render::{
     texture::Image,
 };
 
-mod gpu_readback;
 mod events;
+mod gpu_compute;
 
 pub const INITIAL_SIZE: u32 = 400;
 pub const INITIAL_RADIUS: f32 = 0.1;
@@ -45,22 +49,97 @@ fn main() {
             image: initial_image,
             handle: Handle::default(),
         })
-        .add_event::<CircleSizeChanged>() // Add event handler
+        .add_event::<CircleSizeChanged>()
         .add_plugins((
             DefaultPlugins,
+            EguiPlugin,
             GpuReadbackPlugin::new(INITIAL_SIZE, INITIAL_RADIUS),
         ))
+        .add_plugins((
+            FrameTimeDiagnosticsPlugin::default(),
+            LogDiagnosticsPlugin::default(),
+        ))
         .add_systems(Startup, (spawn_texture, spawn_camera))
-        .add_systems(
-            Update,
-            (
-                receive,
-                // handle_size_changes, // Add system to handle size changes
-                keyboard_input, // Example system to change size with keyboard
-            ),
-        )
+        .add_systems(Update, (receive, ui_system))
         .run();
 }
+
+fn ui_system(
+    mut contexts: EguiContexts,
+    mut size_events: EventWriter<CircleSizeChanged>,
+    current_settings: Res<CircleSettings>,
+    mut compute_settings: ResMut<ComputeSettings>,
+) {
+    egui::SidePanel::left("control_panel")
+        .resizable(true)
+        .default_width(200.0)
+        .show(contexts.ctx_mut(), |ui| {
+            ui.heading("Circle Controls");
+
+            let mut size = current_settings.size as i32;
+            let mut radius = current_settings.radius;
+
+            ui.add_space(20.0);
+
+            ui.group(|ui| {
+                ui.label("Size");
+                if ui
+                    .add(egui::Slider::new(&mut size, 400..=3200).text("pixels"))
+                    .changed()
+                {
+                    size_events.send(CircleSizeChanged {
+                        new_size: size as u32,
+                        new_radius: radius,
+                    });
+                }
+            });
+
+            ui.add_space(10.0);
+
+            ui.group(|ui| {
+                ui.label("Radius");
+                if ui
+                    .add(egui::Slider::new(&mut radius, 0.01..=0.5).text("ratio"))
+                    .changed()
+                {
+                    size_events.send(CircleSizeChanged {
+                        new_size: size as u32,
+                        new_radius: radius,
+                    });
+                }
+            });
+
+            ui.add_space(20.0);
+
+            ui.label(format!("Current Size: {}", size));
+            ui.label(format!("Current Radius: {:.3}", radius));
+
+            // Add GPU control toggles
+            ui.add_space(20.0);
+            ui.heading("GPU Controls");
+            ui.add_space(10.0);
+
+            ui.group(|ui| {
+                // ui.checkbox(&mut compute_settings.enable_compute, "Enable Compute");
+                // if compute_settings.enable_compute {
+                //     ui.checkbox(&mut compute_settings.enable_readback, "Enable GPU Readback");
+                // } else {
+                //     compute_settings.enable_readback = false;
+                // }
+
+                // ui.add_space(5.0);
+                // if !compute_settings.enable_compute {
+                //     ui.label("⚠️ Compute shader disabled");
+                // } else if !compute_settings.enable_readback {
+                //     ui.label("⚠️ GPU readback disabled");
+                // }
+
+                ui.checkbox(&mut compute_settings.enable_compute, "enable compute");
+                ui.checkbox(&mut compute_settings.enable_readback, "enable readback");
+            });
+        });
+}
+
 fn spawn_camera(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
 }
@@ -81,54 +160,12 @@ fn array_to_bevy_image(data: &[f32], size: usize) -> Image {
     );
 }
 
-fn keyboard_input(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut size_events: EventWriter<CircleSizeChanged>,
-    current_settings: Res<CircleSettings>,
-) {
-    if keyboard.just_pressed(KeyCode::ArrowUp) {
-        let new_size = current_settings.size + 1;
-        let new_radius = current_settings.radius;
-        size_events.send(CircleSizeChanged {
-            new_size,
-            new_radius,
-        });
-    }
-    if keyboard.just_pressed(KeyCode::ArrowDown) {
-        let new_size = current_settings.size - 1;
-        let new_radius = current_settings.radius;
-        size_events.send(CircleSizeChanged {
-            new_size,
-            new_radius,
-        });
-    }
-    if keyboard.just_pressed(KeyCode::ArrowRight) {
-        let new_size = current_settings.size;
-        let new_radius = current_settings.radius + 0.01;
-        size_events.send(CircleSizeChanged {
-            new_size,
-            new_radius,
-        });
-    }
-    if keyboard.just_pressed(KeyCode::ArrowLeft) {
-        let new_size = current_settings.size;
-        let new_radius = current_settings.radius - 0.01;
-        size_events.send(CircleSizeChanged {
-            new_size,
-            new_radius,
-        });
-    }
-}
-
-/// This system will poll the channel and try to get the data sent from the render world
 fn receive(
     receiver: Res<MainWorldReceiver>,
     settings: Res<CircleSettings>,
     mut texture: ResMut<GpuTexture>,
     mut images: ResMut<Assets<Image>>,
 ) {
-    // We don't want to block the main world on this,
-    // so we use try_recv which attempts to receive without blocking
     if let Ok(data) = receiver.try_recv() {
         let size = settings.size as usize;
         let expected_len = size * size;
@@ -139,26 +176,10 @@ fn receive(
 
         let new_image = array_to_bevy_image(&data, size);
         texture.image = new_image.clone();
-        
-        // Fixed: Added & to borrow the handle
         images.insert(&texture.handle, new_image);
-
-        // // Debug visualization...
-        // println!("");
-        // for y in 0..size {
-        //     let mut line = String::new();
-        //     for x in 0..size {
-        //         let idx = y * size + x;
-        //         line.push(' ');
-        //         if idx < data.len() {
-        //             let value = data[idx];
-        //             line.push(if value > 0.5 { '█' } else { '0' });
-        //         }
-        //     }
-        //     println!("{}", line);
-        // }
     }
 }
+
 fn spawn_texture(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
