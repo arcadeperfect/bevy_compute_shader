@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bevy Vaporwave</title>
+    <link rel="stylesheet" href="styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Roboto+Mono&display=swap" rel="stylesheet">
+</head>
+
+<body class="color-scheme-home">
+    <div class="grid">
+        <div class="main-column">
+            <p>Side project to learn the basics of wgsl and develop a look for my <a href="https://alexharding.ooo/posts/Rustroneer/">main Bevy project</a>.</p>
+
+            <div id="wasm-container" tabindex="-1"></div>
+            <br>
+            <h2><a href="https://github.com/arcadeperfect/bevy_vaporwave">Github</a></h2>
+            <br>
+            <p>Side project to learn the basics of wgsl and develop a look for my <a href="https://alexharding.ooo/posts/Rustroneer/">main Bevy project</a>.</p>
+           
+        </div>
+    </div>
+
+    <script type="module">
+        import init from './out/bevy_compute_shader_2.js';
+
+        async function run() {
+            window.scrollTo(0, 0);
+
+            const wasmContainer = document.getElementById('wasm-container');
+            
+            const observer = new MutationObserver((mutations) => {
+                for (let mutation of mutations) {
+                    for (let node of mutation.addedNodes) {
+                        if (node.tagName === 'CANVAS') {
+                            node.setAttribute('tabindex', '-1');
+                            
+                            const originalFocus = node.focus.bind(node);
+                            node.focus = function() {
+                                const scrollPos = window.scrollY;
+                                originalFocus();
+                                requestAnimationFrame(() => window.scrollTo(0, scrollPos));
+                            };
+
+                            node.style.width = '100%';
+                            node.style.height = '100%';
+                            wasmContainer.appendChild(node);
+                            observer.disconnect();
+                        }
+                    }
+                }
+            });
+
+            observer.observe(document.body, { childList: true });
+
+            await init();
+        }
+
+        if ('scrollRestoration' in history) {
+            history.scrollRestoration = 'manual';
+        }
+
+        if (document.readyState === 'complete') {
+            run();
+        } else {
+            window.addEventListener('load', run);
+        }
+    </script>
+</body>
+</html>
