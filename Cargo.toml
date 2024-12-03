@@ -1,5 +1,5 @@
 [package]
-name = "bevy_compute_shader_2"
+name = "bevy_compute_shader"
 version = "0.1.0"
 edition = "2021"
 
