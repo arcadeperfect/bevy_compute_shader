@@ -27,18 +27,43 @@ const SHADER_ASSET_PATH: &str = "shaders/gpu_readback.wgsl";
 // The length of the buffer sent to the gpu
 const BUFFER_LEN: usize = 512;
 
+#[derive(Resource, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, ExtractResource, ShaderType)]
+#[repr(C)]
+struct ParamsUniform {
+    dimensions: u32,
+    radius: f32,
+}
+
 fn main() {
     App::new()
+        .insert_resource(ParamsUniform {
+            dimensions: BUFFER_LEN as u32,
+            radius: 0.1,
+        })
         .add_plugins((
             DefaultPlugins,
             GpuReadbackPlugin,
-            // ExtractResourcePlugin::<ReadbackBuffer>::default(),
             ExtractResourcePlugin::<ReadbackImage>::default(),
+            ExtractResourcePlugin::<ParamsUniform>::default(),
         ))
         .insert_resource(ClearColor(Color::BLACK))
         .add_systems(Startup, setup)
-        .add_plugins(ExtractResourcePlugin::<ParamsUniform>::default())
+        .add_systems(Update, update_params)
         .run();
+}
+
+fn update_params(mut params_uniform: ResMut<ParamsUniform>, time: Res<Time>) {
+    params_uniform.radius = 0.1 + (time.elapsed_secs().sin() * 0.05);
+}
+
+fn update_uniform_buffer(
+    gpu_buffer_bind_group: Option<Res<GpuBufferBindGroup>>,
+    render_queue: Res<RenderQueue>,
+    params: Res<ParamsUniform>,
+) {
+    if let Some(bind_group) = gpu_buffer_bind_group {
+        render_queue.write_buffer(&bind_group.uniform_buffer, 0, bytemuck::bytes_of(&*params));
+    }
 }
 
 // We need a plugin to organize all the systems and render node required for this example
@@ -50,14 +75,17 @@ impl Plugin for GpuReadbackPlugin {
         let render_app = app.sub_app_mut(RenderApp);
         render_app.init_resource::<ComputePipeline>().add_systems(
             Render,
-            prepare_bind_group
-                .in_set(RenderSet::PrepareBindGroups)
-                // We don't need to recreate the bind group every frame
-                .run_if(not(resource_exists::<GpuBufferBindGroup>)),
+            (
+                update_uniform_buffer,
+                prepare_bind_group
+                    .in_set(RenderSet::PrepareBindGroups)
+                    // We don't need to recreate the bind group every frame
+                    .run_if(not(resource_exists::<GpuBufferBindGroup>)),
+            ),
         );
 
-        // Add the compute node as a top level node to the render graph
-        // This means it will only execute once per frame
+        // // Add the compute node as a top level node to the render graph
+        // // This means it will only execute once per frame
         render_app
             .world_mut()
             .resource_mut::<RenderGraph>()
@@ -65,18 +93,10 @@ impl Plugin for GpuReadbackPlugin {
     }
 }
 
-// #[derive(Resource, ExtractResource, Clone)]
-// struct ReadbackBuffer(Handle<ShaderStorageBuffer>);
-
 #[derive(Resource, ExtractResource, Clone)]
 struct ReadbackImage(Handle<Image>);
 
-fn setup(
-    mut commands: Commands,
-    mut images: ResMut<Assets<Image>>,
-    // mut buffers: ResMut<Assets<ShaderStorageBuffer>>,
-    asset_server: Res<AssetServer>,
-) {
+fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     commands.spawn((Camera2d::default(),));
 
     // Create a storage texture with some data
@@ -89,7 +109,7 @@ fn setup(
         size,
         TextureDimension::D2,
         &[0, 0, 0, 0],
-        TextureFormat::Rgba8Unorm,
+        TextureFormat::Rgba32Float,
         // TextureFormat::R32Uint,
         RenderAssetUsages::RENDER_WORLD,
     );
@@ -121,22 +141,13 @@ fn setup(
 
     // This is just a simple way to pass the image handle to the render app for our compute node
     commands.insert_resource(ReadbackImage(image));
-
-    commands.insert_resource(ParamsUniform {
-        dimensions: BUFFER_LEN as u32,
-        radius: 0.1,
-    });
-}
-
-#[derive(Resource, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, ExtractResource, ShaderType)]
-#[repr(C)]
-struct ParamsUniform {
-    dimensions: u32,
-    radius: f32,
 }
 
 #[derive(Resource)]
-struct GpuBufferBindGroup(BindGroup);
+struct GpuBufferBindGroup {
+    bind_group: BindGroup,
+    uniform_buffer: Buffer,
+}
 
 fn prepare_bind_group(
     mut commands: Commands,
@@ -144,32 +155,32 @@ fn prepare_bind_group(
     render_device: Res<RenderDevice>,
     image: Res<ReadbackImage>,
     images: Res<RenderAssets<GpuImage>>,
-    // world: &mut World,
     params: Res<ParamsUniform>,
     render_queue: Res<RenderQueue>,
 ) {
-    // let render_queue = world.resource::<RenderQueue>();
+    let image = images.get(&image.0).unwrap();
 
-    let buffer = render_device.create_buffer(&BufferDescriptor {
+    let uniform_buffer = render_device.create_buffer(&BufferDescriptor {
         label: Some("uniform"),
         size: std::mem::size_of::<ParamsUniform>() as u64,
         usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
 
-    render_queue.write_buffer(&buffer, 0, bytes_of(&*params));
-    // render_queue.write_buffer(&uniform_buffer, 0, bytemuck::cast_slice(&[*uniform_buffer]));
+    render_queue.write_buffer(&uniform_buffer, 0, bytes_of(&*params));
 
-    let image = images.get(&image.0).unwrap();
     let bind_group = render_device.create_bind_group(
         None,
         &pipeline.layout,
         &BindGroupEntries::sequential((
-            buffer.as_entire_buffer_binding(),
+            uniform_buffer.as_entire_buffer_binding(),
             image.texture_view.into_binding(),
         )),
     );
-    commands.insert_resource(GpuBufferBindGroup(bind_group));
+    commands.insert_resource(GpuBufferBindGroup {
+        bind_group,
+        uniform_buffer,
+    });
 }
 
 #[derive(Resource)]
@@ -189,7 +200,7 @@ impl FromWorld for ComputePipeline {
                     // storage_buffer::<Vec<u32>>(false),
                     // uniform_buffer(false),
                     uniform_buffer::<ParamsUniform>(false),
-                    texture_storage_2d(TextureFormat::Rgba8Unorm, StorageTextureAccess::ReadWrite),
+                    texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
                 ),
             ),
         );
@@ -204,7 +215,11 @@ impl FromWorld for ComputePipeline {
             entry_point: "main".into(),
             zero_initialize_workgroup_memory: false,
         });
-        ComputePipeline { layout, pipeline }
+        ComputePipeline {
+            layout,
+            pipeline,
+            // uniform_buffer,
+        }
     }
 }
 
@@ -235,7 +250,7 @@ impl render_graph::Node for ComputeNode {
                         ..default()
                     });
 
-            pass.set_bind_group(0, &bind_group.0, &[]);
+            pass.set_bind_group(0, &bind_group.bind_group, &[]);
             pass.set_pipeline(init_pipeline);
             pass.dispatch_workgroups(BUFFER_LEN as u32, BUFFER_LEN as u32, 1);
         }
