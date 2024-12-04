@@ -57,8 +57,11 @@ struct Params {
     noise_scale: f32,
     noise_amplitude: f32,
 }
+// @group(0) @binding(0) var<uniform> params: Params;
+// @group(0) @binding(1) var texture: texture_storage_2d<rgba32float, write>;
 @group(0) @binding(0) var<uniform> params: Params;
-@group(0) @binding(1) var texture: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(2) var output_texture: texture_storage_2d<rgba32float, write>;
+
 
 // Changed to 8x8 workgroup size - better for most GPUs
 @compute @workgroup_size(8, 8)
@@ -100,7 +103,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     pos = vec2f(mag, 0.0);
     let edge = vec2f(r, 0.0);
 
-    textureStore(texture, upos, vec4<f32>(v , dist, distance(pos, edge), 1.));    
+    textureStore(output_texture, upos, vec4<f32>(v , dist, distance(pos, edge), 1.));    
 
 } 
 
