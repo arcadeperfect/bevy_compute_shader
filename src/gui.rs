@@ -29,25 +29,20 @@ fn ui_system(
     // mut param_events: EventWriter<ParamsChanged>,
     mut params: ResMut<ParamsUniform>,
 ) {
-    let mut radius = params.radius;
+    // let mut radius = params.radius;
 
     egui::SidePanel::left("control_panel")
         .resizable(true)
         .default_width(200.0)
         .show(contexts.ctx_mut(), |ui| {
-            ui.heading("Controls");
+            ui.heading("Circle");
             ui.group(|ui| {
-                ui.label("cakes");
-                if ui
-                    .add(egui::Slider::new(&mut radius, 0.0..=1.).text("radius"))
-                    .changed()
-                {
-                    params.radius = radius;
-                    // println!("sending event");
-                    // param_events.send(ParamsChanged {
-                    //    radius,
-                    // });
-                }
+                ui.label("radius");
+                ui.add(egui::Slider::new(&mut params.radius, 0.0..=1.).text("radius"));
+                ui.add(egui::Slider::new(&mut params.noise_amplitude, 0.0..=5.).text("amplitude"));
+                ui.add(egui::Slider::new(&mut params.noise_scale, 0.0..=2.).text("scale"));
+                
+
             });
 
         });

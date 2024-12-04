@@ -39,14 +39,26 @@ const BUFFER_LEN: usize = 1000;
 struct ParamsUniform {
     dimensions: u32,
     radius: f32,
+    noise_seed: u32,
+    noise_scale: f32,
+    noise_amplitude: f32,
+}
+
+impl Default for ParamsUniform {
+    fn default() -> Self {
+        Self {
+            dimensions: BUFFER_LEN as u32,
+            radius: 0.5,
+            noise_seed: 0,
+            noise_scale: 1.0,
+            noise_amplitude: 1.0
+        }
+    }
 }
 
 fn main() {
     App::new()
-        .insert_resource(ParamsUniform {
-            dimensions: BUFFER_LEN as u32,
-            radius: 0.1,
-        })
+        .insert_resource(ParamsUniform::default())
         .add_plugins((
             DefaultPlugins,
             GpuReadbackPlugin,
@@ -164,8 +176,13 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     );
 
     commands.spawn((
-        Sprite::from_image(image.clone()),
-        Transform::from_xyz(0.0, 0.5, 0.0).with_scale(Vec3::splat(0.2)),
+        // Sprite::from_image(image.clone()),
+        Sprite{
+            image: image.clone(),
+            custom_size: Some(Vec2::splat(1000.0)),
+            ..Default::default()
+        },
+        Transform::from_xyz(0.0, 0.5, 0.0).with_scale(Vec3::splat(1.0)),
     ));
 
     // This is just a simple way to pass the image handle to the render app for our compute node
