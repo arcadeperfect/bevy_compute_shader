@@ -2,30 +2,37 @@
 //! using both a storage buffer and texture.
 
 use bevy::{
-    prelude::*,
-    render::{
+    asset::load_internal_asset, prelude::*, render::{
         extract_resource::{ExtractResource, ExtractResourcePlugin},
         gpu_readback::{Readback, ReadbackComplete},
         render_asset::{RenderAssetUsages, RenderAssets},
         render_graph::{self, RenderGraph, RenderLabel},
         render_resource::{
-            binding_types::{storage_buffer, texture_storage_2d},
+            binding_types::texture_storage_2d,
             *,
         },
         renderer::{RenderContext, RenderDevice, RenderQueue},
         storage::{GpuShaderStorageBuffer, ShaderStorageBuffer},
         texture::GpuImage,
         Render, RenderApp, RenderSet,
-    },
+    }
 };
+
+mod gui;
+
+
+
 use binding_types::uniform_buffer;
 use bytemuck::bytes_of;
+use gui::ParamsChanged;
 
 /// This example uses a shader source file from the assets subdirectory
-const SHADER_ASSET_PATH: &str = "shaders/gpu_readback.wgsl";
+const SHADER_ASSET_PATH: &str = "shaders/generate_circle.wgsl";
+const NOISE_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(13378847158248049035);
+const VECTOR_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378847158248049035);
 
 // The length of the buffer sent to the gpu
-const BUFFER_LEN: usize = 512;
+const BUFFER_LEN: usize = 1000;
 
 #[derive(Resource, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, ExtractResource, ShaderType)]
 #[repr(C)]
@@ -45,15 +52,11 @@ fn main() {
             GpuReadbackPlugin,
             ExtractResourcePlugin::<ReadbackImage>::default(),
             ExtractResourcePlugin::<ParamsUniform>::default(),
+            gui::GuiPlugin
         ))
         .insert_resource(ClearColor(Color::BLACK))
         .add_systems(Startup, setup)
-        .add_systems(Update, update_params)
         .run();
-}
-
-fn update_params(mut params_uniform: ResMut<ParamsUniform>, time: Res<Time>) {
-    params_uniform.radius = 0.1 + (time.elapsed_secs().sin() * 0.05);
 }
 
 fn update_uniform_buffer(
@@ -69,7 +72,35 @@ fn update_uniform_buffer(
 // We need a plugin to organize all the systems and render node required for this example
 struct GpuReadbackPlugin;
 impl Plugin for GpuReadbackPlugin {
-    fn build(&self, _app: &mut App) {}
+
+    
+
+    fn build(&self, app: &mut App) {
+        // let asset_server = app.world().resource::<AssetServer>();
+        // let _noise_shader: Handle<Shader> = asset_server.load("shaders/noise.wgsl");
+        // let _main_shader: Handle<Shader> = asset_server.load("shaders/generate_circle.wgsl");
+        // Load the noise shader first as an internal asset
+        load_internal_asset!(
+            app,
+            NOISE_SHADER_HANDLE,
+            "../assets/shaders/utils/noise.wgsl",
+            Shader::from_wgsl
+        );
+        load_internal_asset!(
+            app,
+            VECTOR_SHADER_HANDLE,
+            "../assets/shaders/utils/utils.wgsl",
+            Shader::from_wgsl
+        );
+
+        // Load the main shader that imports the noise shader
+        // load_internal_asset!(
+        //     app,
+        //     MAIN_SHADER_HANDLE,
+        //     "../assets/shaders/generate_circle.wgsl",
+        //     Shader::from_wgsl
+        // );
+    }
 
     fn finish(&self, app: &mut App) {
         let render_app = app.sub_app_mut(RenderApp);
@@ -83,13 +114,11 @@ impl Plugin for GpuReadbackPlugin {
                     .run_if(not(resource_exists::<GpuBufferBindGroup>)),
             ),
         );
-
-        // // Add the compute node as a top level node to the render graph
-        // // This means it will only execute once per frame
         render_app
             .world_mut()
             .resource_mut::<RenderGraph>()
             .add_node(ComputeNodeLabel, ComputeNode::default());
+        render_app.add_event::<ParamsChanged>();
     }
 }
 
@@ -136,7 +165,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 
     commands.spawn((
         Sprite::from_image(image.clone()),
-        Transform::from_xyz(0.0, 0.5, 0.0).with_scale(Vec3::splat(1.0)),
+        Transform::from_xyz(0.0, 0.5, 0.0).with_scale(Vec3::splat(0.2)),
     ));
 
     // This is just a simple way to pass the image handle to the render app for our compute node
@@ -196,15 +225,14 @@ impl FromWorld for ComputePipeline {
             None,
             &BindGroupLayoutEntries::sequential(
                 ShaderStages::COMPUTE,
-                (
-                    // storage_buffer::<Vec<u32>>(false),
-                    // uniform_buffer(false),
+                ( 
                     uniform_buffer::<ParamsUniform>(false),
                     texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
                 ),
             ),
         );
         let shader = world.load_asset(SHADER_ASSET_PATH);
+        // let noise_shader: Handle<Shader> = world.load_asset(NOISE_SHADER_ASSET_PATH);
         let pipeline_cache = world.resource::<PipelineCache>();
         let pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: Some("GPU readback compute shader".into()),
@@ -218,7 +246,6 @@ impl FromWorld for ComputePipeline {
         ComputePipeline {
             layout,
             pipeline,
-            // uniform_buffer,
         }
     }
 }
