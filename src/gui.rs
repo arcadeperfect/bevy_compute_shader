@@ -3,14 +3,10 @@ use bevy_egui::{egui, EguiContexts};
 
 use crate::ParamsUniform;
 
-
-
 #[derive(Event)]
 pub struct ParamsChanged {
     pub radius: f32,
 }
-
-
 
 pub struct GuiPlugin;
 
@@ -21,8 +17,6 @@ impl Plugin for GuiPlugin {
         app.add_event::<ParamsChanged>();
     }
 }
-
-
 
 fn ui_system(
     mut contexts: EguiContexts,
@@ -41,9 +35,6 @@ fn ui_system(
                 ui.add(egui::Slider::new(&mut params.radius, 0.0..=1.).text("radius"));
                 ui.add(egui::Slider::new(&mut params.noise_amplitude, 0.0..=5.).text("amplitude"));
                 ui.add(egui::Slider::new(&mut params.noise_scale, 0.0..=2.).text("scale"));
-                
-
             });
-
         });
 }

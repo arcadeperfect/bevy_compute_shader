@@ -2,25 +2,22 @@
 //! using both a storage buffer and texture.
 
 use bevy::{
-    asset::load_internal_asset, prelude::*, render::{
+    asset::load_internal_asset,
+    prelude::*,
+    render::{
         extract_resource::{ExtractResource, ExtractResourcePlugin},
         gpu_readback::{Readback, ReadbackComplete},
         render_asset::{RenderAssetUsages, RenderAssets},
         render_graph::{self, RenderGraph, RenderLabel},
-        render_resource::{
-            binding_types::texture_storage_2d,
-            *,
-        },
+        render_resource::{binding_types::texture_storage_2d, *},
         renderer::{RenderContext, RenderDevice, RenderQueue},
         storage::{GpuShaderStorageBuffer, ShaderStorageBuffer},
         texture::GpuImage,
         Render, RenderApp, RenderSet,
-    }
+    },
 };
 
 mod gui;
-
-
 
 use binding_types::uniform_buffer;
 use bytemuck::bytes_of;
@@ -51,7 +48,7 @@ impl Default for ParamsUniform {
             radius: 0.5,
             noise_seed: 0,
             noise_scale: 1.0,
-            noise_amplitude: 1.0
+            noise_amplitude: 1.0,
         }
     }
 }
@@ -64,7 +61,7 @@ fn main() {
             GpuReadbackPlugin,
             ExtractResourcePlugin::<ReadbackImage>::default(),
             ExtractResourcePlugin::<ParamsUniform>::default(),
-            gui::GuiPlugin
+            gui::GuiPlugin,
         ))
         .insert_resource(ClearColor(Color::BLACK))
         .add_systems(Startup, setup)
@@ -84,9 +81,6 @@ fn update_uniform_buffer(
 // We need a plugin to organize all the systems and render node required for this example
 struct GpuReadbackPlugin;
 impl Plugin for GpuReadbackPlugin {
-
-    
-
     fn build(&self, app: &mut App) {
         // let asset_server = app.world().resource::<AssetServer>();
         // let _noise_shader: Handle<Shader> = asset_server.load("shaders/noise.wgsl");
@@ -177,7 +171,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 
     commands.spawn((
         // Sprite::from_image(image.clone()),
-        Sprite{
+        Sprite {
             image: image.clone(),
             custom_size: Some(Vec2::splat(1000.0)),
             ..Default::default()
@@ -204,17 +198,17 @@ fn prepare_bind_group(
     params: Res<ParamsUniform>,
     render_queue: Res<RenderQueue>,
 ) {
-    let image = images.get(&image.0).unwrap();
-
+    
     let uniform_buffer = render_device.create_buffer(&BufferDescriptor {
         label: Some("uniform"),
         size: std::mem::size_of::<ParamsUniform>() as u64,
         usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         mapped_at_creation: false,
     });
-
+    
     render_queue.write_buffer(&uniform_buffer, 0, bytes_of(&*params));
-
+    
+    let image = images.get(&image.0).unwrap();
     let bind_group = render_device.create_bind_group(
         None,
         &pipeline.layout,
@@ -242,14 +236,14 @@ impl FromWorld for ComputePipeline {
             None,
             &BindGroupLayoutEntries::sequential(
                 ShaderStages::COMPUTE,
-                ( 
+                (
                     uniform_buffer::<ParamsUniform>(false),
                     texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
                 ),
             ),
         );
         let shader = world.load_asset(SHADER_ASSET_PATH);
-        // let noise_shader: Handle<Shader> = world.load_asset(NOISE_SHADER_ASSET_PATH);
+
         let pipeline_cache = world.resource::<PipelineCache>();
         let pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: Some("GPU readback compute shader".into()),
@@ -260,10 +254,7 @@ impl FromWorld for ComputePipeline {
             entry_point: "main".into(),
             zero_initialize_workgroup_memory: false,
         });
-        ComputePipeline {
-            layout,
-            pipeline,
-        }
+        ComputePipeline { layout, pipeline }
     }
 }
 

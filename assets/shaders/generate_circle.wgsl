@@ -72,13 +72,16 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
 
     let dim = params.dimensions;
-    let pos = vec2<f32>(
+    
+    var pos = vec2f(
         f32(x) / f32(dim),
         f32(y) / f32(dim)
     );
 
+
     let mult = 10.0;
     let center = vec2<f32>(0.5, 0.5);
+    
     let angle = atan2(pos.x - center.x, pos.y - center.y);
     let seed = vec2f(cos(angle), sin(angle)); 
     var n = noise::noise2(seed * mult * params.noise_scale);
@@ -89,8 +92,15 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let r = params.radius * 0.4 + n;
     let dist = distance(pos, center);
     let upos = vec2<i32>(i32(x), i32(y)); 
+
     let v = select(0.0, 1.0, dist <= r);
 
-    textureStore(texture, upos, vec4<f32>(v , 0., 0., 1.));    
+    pos = pos - center;
+    let mag = length(pos);
+    pos = vec2f(mag, 0.0);
+    let edge = vec2f(r, 0.0);
+
+    textureStore(texture, upos, vec4<f32>(v , dist, distance(pos, edge), 1.));    
+
 } 
 
