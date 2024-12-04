@@ -23,11 +23,12 @@ use binding_types::uniform_buffer;
 use bytemuck::bytes_of;
 use gui::ParamsChanged;
 
-/// This example uses a shader source file from the assets subdirectory
-const SHADER1_ASSET_PATH: &str = "shaders/generate_circle.wgsl";
-const SHADER2_ASSET_PATH: &str = "shaders/second_pass.wgsl";
-const NOISE_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(13378847158248049035);
-const VECTOR_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378847158248049035);
+
+const SHADER1_HANDLE: Handle<Shader> = Handle::weak_from_u128(13378847158248049035);
+const SHADER2_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378847158248049035);
+const SHADER3_HANDLE: Handle<Shader> = Handle::weak_from_u128(33378847158248049035);
+const NOISE_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(14378847158248049035);
+const VECTOR_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(25378847158248049035);
 
 // The length of the buffer sent to the gpu
 const BUFFER_LEN: usize = 1000;
@@ -40,6 +41,9 @@ struct ParamsUniform {
     noise_seed: u32,
     noise_scale: f32,
     noise_amplitude: f32,
+    noise_offset: f32,
+    warp_amount: f32,
+    warp_scale: f32,
 }
 
 impl Default for ParamsUniform {
@@ -50,6 +54,9 @@ impl Default for ParamsUniform {
             noise_seed: 0,
             noise_scale: 1.0,
             noise_amplitude: 1.0,
+            noise_offset: 0.0,
+            warp_amount: 0.0,
+            warp_scale: 0.0,
         }
     }
 }
@@ -84,19 +91,42 @@ struct GpuReadbackPlugin;
 impl Plugin for GpuReadbackPlugin {
     fn build(&self, app: &mut App) {
         
+        // let asset_server = app.world().resource::<AssetServer>();
+        // let asset_path = asset_server.
+        
         // Load the noise shader first as an internal asset
         load_internal_asset!(
             app,
             NOISE_SHADER_HANDLE,
-            "../assets/shaders/utils/noise.wgsl",
+            "shaders/utils/noise.wgsl",
             Shader::from_wgsl
         );
         load_internal_asset!(
             app,
             VECTOR_SHADER_HANDLE,
-            "../assets/shaders/utils/utils.wgsl",
+            "shaders/utils/utils.wgsl",
             Shader::from_wgsl
         );
+
+        load_internal_asset!(
+            app,
+            SHADER1_HANDLE,
+            "shaders/generate_circle.wgsl",
+            Shader::from_wgsl
+        );
+        load_internal_asset!(
+            app,
+            SHADER2_HANDLE,
+            "shaders/domain_warp.wgsl",
+            Shader::from_wgsl
+        );
+        load_internal_asset!(
+            app,
+            SHADER3_HANDLE,
+            "shaders/3rd_pass.wgsl",
+            Shader::from_wgsl
+        );
+        
     }
 
     fn finish(&self, app: &mut App) {
@@ -117,13 +147,11 @@ impl Plugin for GpuReadbackPlugin {
         
         render_graph.add_node(ComputeNodeLabel1, ComputeNode{ pass_index: 0});
         render_graph.add_node(ComputeNodeLabel2, ComputeNode{ pass_index: 1});
+        render_graph.add_node(ComputeNodeLabel3, ComputeNode{ pass_index: 2});
         render_graph.add_node_edge(ComputeNodeLabel1, ComputeNodeLabel2);
+        render_graph.add_node_edge(ComputeNodeLabel2, ComputeNodeLabel3);
 
-        // render_app
-        //     .world_mut()
-        //     .resource_mut::<RenderGraph>()
-        //     .add_node(ComputeNodeLabel, ComputeNode::default());
-        render_app.add_event::<ParamsChanged>();
+        
     }
 }
 
@@ -131,6 +159,7 @@ impl Plugin for GpuReadbackPlugin {
 struct ReadbackImage {
     ping: Handle<Image>,
     pong: Handle<Image>,
+    result: Handle<Image>,
 }
 
 fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
@@ -153,8 +182,12 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 
     // We also need to enable the COPY_SRC, as well as STORAGE_BINDING so we can use it in the
     // compute shader
-    image.texture_descriptor.usage |= TextureUsages::COPY_SRC | TextureUsages::STORAGE_BINDING;
-    let image = images.add(image);
+    image.texture_descriptor.usage |= 
+    TextureUsages::COPY_SRC | 
+    TextureUsages::COPY_DST |
+    TextureUsages::STORAGE_BINDING |
+    TextureUsages::TEXTURE_BINDING;
+    
 
     let mut create_image = || {
         let mut image = Image::new_fill(
@@ -162,7 +195,6 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
             TextureDimension::D2,
             &[0, 0, 0, 0],
             TextureFormat::Rgba32Float,
-            // TextureFormat::R32Uint,
             RenderAssetUsages::RENDER_WORLD,
         );
         image.texture_descriptor.usage |= TextureUsages::COPY_SRC | TextureUsages::STORAGE_BINDING;
@@ -171,7 +203,8 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 
     let ping = create_image();
     let pong = create_image();
-    commands.spawn(Readback::texture(ping.clone()));
+    let result = create_image();
+    // commands.spawn(Readback::texture(pong.clone()));
 
     // Spawn the readback components. For each frame, the data will be read back from the GPU
     // asynchronously and trigger the `ReadbackComplete` event on this entity. Despawn the entity
@@ -179,12 +212,11 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 
     // Textures can also be read back from the GPU. Pay careful attention to the format of the
     // texture, as it will affect how the data is interpreted.
-    // commands.spawn(Readback::texture(image.clone()));
+    // commands.spawn(Readback::texture(pong.clone()));
 
     commands.spawn((
-        // Sprite::from_image(image.clone()),
         Sprite {
-            image: ping.clone(),
+            image: result.clone(),
             custom_size: Some(Vec2::splat(1000.0)),
             ..Default::default()
         },
@@ -194,8 +226,9 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     // This is just a simple way to pass the image handle to the render app for our compute node
     // commands.insert_resource(ReadbackImage(image));
     commands.insert_resource(ReadbackImage {
-        ping: ping.clone(),
+        ping: ping,
         pong: pong,
+        result: result,
     });
 }
 
@@ -203,13 +236,10 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 struct GpuBufferBindGroups {
     first_pass: BindGroup,
     second_pass: BindGroup,
+    third_pass: BindGroup,
     uniform_buffer: Buffer,
 }
-// #[derive(Resource)]
-// struct GpuBufferBindGroup {
-//     bind_group: BindGroup,
-//     uniform_buffer: Buffer,
-// }
+
 
 fn prepare_bind_groups(
     mut commands: Commands,
@@ -231,6 +261,7 @@ fn prepare_bind_groups(
 
     let ping_image = images.get(&image.ping).unwrap();
     let pong_image = images.get(&image.pong).unwrap();
+    let result_image = images.get(&image.result).unwrap();
 
     let first_pass = render_device.create_bind_group(
         None,
@@ -250,9 +281,21 @@ fn prepare_bind_groups(
             ping_image.texture_view.into_binding(),
         )),
     );
+    let third_pass = render_device.create_bind_group(
+        None,
+        &pipeline.layout,
+        &BindGroupEntries::sequential((
+            uniform_buffer.as_entire_buffer_binding(),
+            ping_image.texture_view.into_binding(),
+            result_image.texture_view.into_binding(),
+        )),
+    );
+
+
     commands.insert_resource(GpuBufferBindGroups {
         first_pass,
         second_pass,
+        third_pass,
         uniform_buffer,
     });
 }
@@ -262,6 +305,7 @@ struct ComputePipelines {
     layout: BindGroupLayout,
     first_pass: CachedComputePipelineId,
     second_pass: CachedComputePipelineId,
+    third_pass: CachedComputePipelineId,
 }
 
 impl FromWorld for ComputePipelines {
@@ -278,24 +322,36 @@ impl FromWorld for ComputePipelines {
                 ),
             ),
         );
-        let shader1 = world.load_asset(SHADER1_ASSET_PATH);
+        // let shader1 = world.load_asset(SHADER1_ASSET_PATH);
+        // let shader1 = 
 
         let pipeline_cache = world.resource::<PipelineCache>();
         let first_pass = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: Some("First pass".into()),
             layout: vec![layout.clone()],
             push_constant_ranges: Vec::new(),
-            shader: shader1.clone(),
+            // shader: shader1.clone(),
+            shader: SHADER1_HANDLE,
             shader_defs: Vec::new(),
             entry_point: "main".into(),
             zero_initialize_workgroup_memory: false,
         });
-        let shader2 = world.load_asset(SHADER2_ASSET_PATH);
+        // let shader2 = world.load_asset(SHADER2_ASSET_PATH);
         let second_pass = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
-            label: Some("First pass".into()),
+            label: Some("Second pass".into()),
             layout: vec![layout.clone()],
             push_constant_ranges: Vec::new(),
-            shader: shader2.clone(),
+            shader: SHADER2_HANDLE,
+            shader_defs: Vec::new(),
+            entry_point: "main".into(),
+            zero_initialize_workgroup_memory: false,
+        });
+
+        let third_pass = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
+            label: Some("Third pass".into()),
+            layout: vec![layout.clone()],
+            push_constant_ranges: Vec::new(),
+            shader: SHADER3_HANDLE,
             shader_defs: Vec::new(),
             entry_point: "main".into(),
             zero_initialize_workgroup_memory: false,
@@ -305,51 +361,19 @@ impl FromWorld for ComputePipelines {
             layout,
             first_pass,
             second_pass,
+            third_pass,
         }
     }
 }
 
-// #[derive(Resource)]
-// struct ComputePipeline {
-//     layout: BindGroupLayout,
-//     pipeline: CachedComputePipelineId,
-// }
-
-// impl FromWorld for ComputePipeline {
-//     fn from_world(world: &mut World) -> Self {
-//         let render_device = world.resource::<RenderDevice>();
-//         let layout = render_device.create_bind_group_layout(
-//             None,
-//             &BindGroupLayoutEntries::sequential(
-//                 ShaderStages::COMPUTE,
-//                 (
-//                     uniform_buffer::<ParamsUniform>(false),
-//                     texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
-//                     texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
-//                 ),
-//             ),
-//         );
-//         let shader = world.load_asset(SHADER1_ASSET_PATH);
-
-//         let pipeline_cache = world.resource::<PipelineCache>();
-//         let pipeline = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
-//             label: Some("GPU readback compute shader".into()),
-//             layout: vec![layout.clone()],
-//             push_constant_ranges: Vec::new(),
-//             shader: shader.clone(),
-//             shader_defs: Vec::new(),
-//             entry_point: "main".into(),
-//             zero_initialize_workgroup_memory: false,
-//         });
-//         ComputePipeline { layout, pipeline }
-//     }
-// }
 
 /// Label to identify the node in the render graph
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 struct ComputeNodeLabel1;
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 struct ComputeNodeLabel2;
+#[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
+struct ComputeNodeLabel3;
 
 /// The node that will execute the compute shader
 #[derive(Default)]
@@ -370,10 +394,12 @@ impl render_graph::Node for ComputeNode {
         let (pipeline_id, bind_group) = match self.pass_index {
             0 => (pipelines.first_pass, &bind_groups.first_pass),
             1 => (pipelines.second_pass, &bind_groups.second_pass),
+            2 => (pipelines.third_pass, &bind_groups.third_pass),
             _ => return Ok(()),
         };
-
+        println!("Running pass {}", self.pass_index);
         if let Some(pipeline) = pipeline_cache.get_compute_pipeline(pipeline_id) {
+            println!("Pipeline ready for pass {}", self.pass_index);
             let mut pass = render_context
                 .command_encoder()
                 .begin_compute_pass(&ComputePassDescriptor::default());
@@ -381,21 +407,16 @@ impl render_graph::Node for ComputeNode {
             pass.set_bind_group(0, bind_group, &[]);
             pass.set_pipeline(pipeline);
             pass.dispatch_workgroups(BUFFER_LEN as u32, BUFFER_LEN as u32, 1);
+
+
+
+        }else {
+            println!("Pipeline not ready for pass {}", self.pass_index);
         }
 
-        // if let Some(init_pipeline) = pipeline_cache.get_compute_pipeline(pipeline.pipeline) {
-        //     let mut pass =
-        //         render_context
-        //             .command_encoder()
-        //             .begin_compute_pass(&ComputePassDescriptor {
-        //                 label: Some("GPU readback compute pass"),
-        //                 ..default()
-        //             });
 
-        //     pass.set_bind_group(0, &bind_group.bind_group, &[]);
-        //     pass.set_pipeline(init_pipeline);
-        //     pass.dispatch_workgroups(BUFFER_LEN as u32, BUFFER_LEN as u32, 1);
-        // }
+
+
         Ok(())
     }
 }

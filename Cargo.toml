@@ -12,6 +12,7 @@ bevy_egui = { version = "0.31.1", default-features = false, features = [
 bytemuck = "1.20.0"
 
 wasm-bindgen = "0.2.97"
+# getrandom = { version = "0.2", features = ["js"] }
 
 # bevy = "0.14.2"
 
@@ -24,3 +25,8 @@ opt-level = 1
 # Enable a large amount of optimization in the dev profile for dependencies.
 [profile.dev.package."*"]
 opt-level = 3
+
+# [profile.release]
+# opt-level = 'z'
+# lto = true
+# codegen-units = 1

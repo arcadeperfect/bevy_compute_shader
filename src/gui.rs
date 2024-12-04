@@ -26,15 +26,18 @@ fn ui_system(
     // let mut radius = params.radius;
 
     egui::SidePanel::left("control_panel")
-        .resizable(true)
-        .default_width(200.0)
+        .resizable(false)
+        .default_width(600.0)
         .show(contexts.ctx_mut(), |ui| {
-            ui.heading("Circle");
+            ui.heading("noiseeee");
             ui.group(|ui| {
                 ui.label("radius");
                 ui.add(egui::Slider::new(&mut params.radius, 0.0..=1.).text("radius"));
                 ui.add(egui::Slider::new(&mut params.noise_amplitude, 0.0..=5.).text("amplitude"));
                 ui.add(egui::Slider::new(&mut params.noise_scale, 0.0..=2.).text("scale"));
+                ui.add(egui::Slider::new(&mut params.noise_offset, 0.0..=20.).text("offset"));
+                ui.add(egui::Slider::new(&mut params.warp_amount, 0.0..=0.2).text("warp amount"));
+                ui.add(egui::Slider::new(&mut params.warp_scale, 1.0..=20.).text("warp scale"));                
             });
         });
 }

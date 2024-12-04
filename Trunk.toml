@@ -1,0 +1,7 @@
+[build]
+public_url = "/"
+
+[[hooks]]
+stage = "build"
+command = "cp"
+command_arguments = ["-r", "assets", "dist/"]
