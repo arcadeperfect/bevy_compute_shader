@@ -45,7 +45,7 @@ jobs:
         if: steps.check_changes.outputs.rust_changed == 'true'
         run: |
           cargo build --release --target wasm32-unknown-unknown
-          wasm-bindgen --out-dir ./dist/out/ --target web ./target/wasm32-unknown-unknown/release/bevy_vaporwave.wasm
+          wasm-bindgen --out-dir ./dist/out/ --target web ./target/wasm32-unknown-unknown/release/bevy_compute_shader.wasm
 
       - name: Copy existing WASM files
         if: steps.check_changes.outputs.rust_changed == 'false'
