@@ -6,23 +6,18 @@ use bevy::{
     prelude::*,
     render::{
         extract_resource::{ExtractResource, ExtractResourcePlugin},
-        gpu_readback::{Readback, ReadbackComplete},
         render_asset::{RenderAssetUsages, RenderAssets},
         render_graph::{self, RenderGraph, RenderLabel},
         render_resource::{binding_types::texture_storage_2d, *},
         renderer::{RenderContext, RenderDevice, RenderQueue},
-        storage::{GpuShaderStorageBuffer, ShaderStorageBuffer},
         texture::GpuImage,
         Render, RenderApp, RenderSet,
     },
 };
-
-mod gui;
-
 use binding_types::uniform_buffer;
 use bytemuck::bytes_of;
-use gui::ParamsChanged;
 
+mod gui;
 
 const SHADER1_HANDLE: Handle<Shader> = Handle::weak_from_u128(13378847158248049035);
 const SHADER2_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378847158248049035);
@@ -86,15 +81,9 @@ fn update_uniform_buffer(
     }
 }
 
-// We need a plugin to organize all the systems and render node required for this example
 struct GpuReadbackPlugin;
 impl Plugin for GpuReadbackPlugin {
     fn build(&self, app: &mut App) {
-        
-        // let asset_server = app.world().resource::<AssetServer>();
-        // let asset_path = asset_server.
-        
-        // Load the noise shader first as an internal asset
         load_internal_asset!(
             app,
             NOISE_SHADER_HANDLE,
@@ -126,13 +115,11 @@ impl Plugin for GpuReadbackPlugin {
             "shaders/3rd_pass.wgsl",
             Shader::from_wgsl
         );
-        
     }
 
     fn finish(&self, app: &mut App) {
         let render_app = app.sub_app_mut(RenderApp);
-        render_app.init_resource::<ComputePipelines>()
-        .add_systems(
+        render_app.init_resource::<ComputePipelines>().add_systems(
             Render,
             (
                 update_uniform_buffer,
@@ -144,14 +131,12 @@ impl Plugin for GpuReadbackPlugin {
         );
 
         let mut render_graph = render_app.world_mut().resource_mut::<RenderGraph>();
-        
-        render_graph.add_node(ComputeNodeLabel1, ComputeNode{ pass_index: 0});
-        render_graph.add_node(ComputeNodeLabel2, ComputeNode{ pass_index: 1});
-        render_graph.add_node(ComputeNodeLabel3, ComputeNode{ pass_index: 2});
+
+        render_graph.add_node(ComputeNodeLabel1, ComputeNode { pass_index: 0 });
+        render_graph.add_node(ComputeNodeLabel2, ComputeNode { pass_index: 1 });
+        render_graph.add_node(ComputeNodeLabel3, ComputeNode { pass_index: 2 });
         render_graph.add_node_edge(ComputeNodeLabel1, ComputeNodeLabel2);
         render_graph.add_node_edge(ComputeNodeLabel2, ComputeNodeLabel3);
-
-        
     }
 }
 
@@ -159,13 +144,12 @@ impl Plugin for GpuReadbackPlugin {
 struct ReadbackImage {
     ping: Handle<Image>,
     pong: Handle<Image>,
-    result: Handle<Image>,
+    // result: Handle<Image>,
 }
 
 fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     commands.spawn((Camera2d::default(),));
 
-    // Create a storage texture with some data
     let size = Extent3d {
         width: BUFFER_LEN as u32,
         height: BUFFER_LEN as u32,
@@ -176,18 +160,13 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         TextureDimension::D2,
         &[0, 0, 0, 0],
         TextureFormat::Rgba32Float,
-        // TextureFormat::R32Uint,
         RenderAssetUsages::RENDER_WORLD,
     );
 
-    // We also need to enable the COPY_SRC, as well as STORAGE_BINDING so we can use it in the
-    // compute shader
-    image.texture_descriptor.usage |= 
-    TextureUsages::COPY_SRC | 
-    TextureUsages::COPY_DST |
-    TextureUsages::STORAGE_BINDING |
-    TextureUsages::TEXTURE_BINDING;
-    
+    image.texture_descriptor.usage |= TextureUsages::COPY_SRC
+        | TextureUsages::COPY_DST
+        | TextureUsages::STORAGE_BINDING
+        | TextureUsages::TEXTURE_BINDING;
 
     let mut create_image = || {
         let mut image = Image::new_fill(
@@ -203,32 +182,21 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 
     let ping = create_image();
     let pong = create_image();
-    let result = create_image();
-    // commands.spawn(Readback::texture(pong.clone()));
-
-    // Spawn the readback components. For each frame, the data will be read back from the GPU
-    // asynchronously and trigger the `ReadbackComplete` event on this entity. Despawn the entity
-    // to stop reading back the data.
-
-    // Textures can also be read back from the GPU. Pay careful attention to the format of the
-    // texture, as it will affect how the data is interpreted.
-    // commands.spawn(Readback::texture(pong.clone()));
+    // let result = create_image();
 
     commands.spawn((
         Sprite {
-            image: result.clone(),
+            image: pong.clone(),
             custom_size: Some(Vec2::splat(1000.0)),
             ..Default::default()
         },
         Transform::from_xyz(0.0, 0.5, 0.0).with_scale(Vec3::splat(1.0)),
     ));
 
-    // This is just a simple way to pass the image handle to the render app for our compute node
-    // commands.insert_resource(ReadbackImage(image));
     commands.insert_resource(ReadbackImage {
         ping: ping,
         pong: pong,
-        result: result,
+        // result: result,
     });
 }
 
@@ -239,7 +207,6 @@ struct GpuBufferBindGroups {
     third_pass: BindGroup,
     uniform_buffer: Buffer,
 }
-
 
 fn prepare_bind_groups(
     mut commands: Commands,
@@ -261,7 +228,7 @@ fn prepare_bind_groups(
 
     let ping_image = images.get(&image.ping).unwrap();
     let pong_image = images.get(&image.pong).unwrap();
-    let result_image = images.get(&image.result).unwrap();
+    // let result_image = images.get(&image.result).unwrap();
 
     let first_pass = render_device.create_bind_group(
         None,
@@ -287,10 +254,10 @@ fn prepare_bind_groups(
         &BindGroupEntries::sequential((
             uniform_buffer.as_entire_buffer_binding(),
             ping_image.texture_view.into_binding(),
-            result_image.texture_view.into_binding(),
+            // result_image.texture_view.into_binding(),
+            pong_image.texture_view.into_binding(),
         )),
     );
-
 
     commands.insert_resource(GpuBufferBindGroups {
         first_pass,
@@ -322,21 +289,18 @@ impl FromWorld for ComputePipelines {
                 ),
             ),
         );
-        // let shader1 = world.load_asset(SHADER1_ASSET_PATH);
-        // let shader1 = 
 
         let pipeline_cache = world.resource::<PipelineCache>();
         let first_pass = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: Some("First pass".into()),
             layout: vec![layout.clone()],
             push_constant_ranges: Vec::new(),
-            // shader: shader1.clone(),
             shader: SHADER1_HANDLE,
             shader_defs: Vec::new(),
             entry_point: "main".into(),
             zero_initialize_workgroup_memory: false,
         });
-        // let shader2 = world.load_asset(SHADER2_ASSET_PATH);
+
         let second_pass = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: Some("Second pass".into()),
             layout: vec![layout.clone()],
@@ -366,8 +330,6 @@ impl FromWorld for ComputePipelines {
     }
 }
 
-
-/// Label to identify the node in the render graph
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 struct ComputeNodeLabel1;
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
@@ -375,7 +337,6 @@ struct ComputeNodeLabel2;
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 struct ComputeNodeLabel3;
 
-/// The node that will execute the compute shader
 #[derive(Default)]
 struct ComputeNode {
     pass_index: u32,
@@ -407,15 +368,9 @@ impl render_graph::Node for ComputeNode {
             pass.set_bind_group(0, bind_group, &[]);
             pass.set_pipeline(pipeline);
             pass.dispatch_workgroups(BUFFER_LEN as u32, BUFFER_LEN as u32, 1);
-
-
-
-        }else {
+        } else {
             println!("Pipeline not ready for pass {}", self.pass_index);
         }
-
-
-
 
         Ok(())
     }

@@ -26,6 +26,5 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     
     let current = textureLoad(input_texture, upos);
 
-    // Write solid red to verify shader is writing
-    textureStore(output_texture, upos, vec4f(1-current.r, current.g, current.b, 1.0));
+    textureStore(output_texture, upos, vec4f(1-current.r, 0.0, 0.0, 1.0));
 }
