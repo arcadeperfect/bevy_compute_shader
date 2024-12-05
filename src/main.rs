@@ -155,24 +155,12 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         height: BUFFER_LEN as u32,
         ..default()
     };
-    let mut image = Image::new_fill(
-        size,
-        TextureDimension::D2,
-        &[0, 0, 0, 0],
-        TextureFormat::Rgba32Float,
-        RenderAssetUsages::RENDER_WORLD,
-    );
-
-    image.texture_descriptor.usage |= TextureUsages::COPY_SRC
-        | TextureUsages::COPY_DST
-        | TextureUsages::STORAGE_BINDING
-        | TextureUsages::TEXTURE_BINDING;
 
     let mut create_image = || {
         let mut image = Image::new_fill(
             size,
             TextureDimension::D2,
-            &[0, 0, 0, 0],
+            &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 
             TextureFormat::Rgba32Float,
             RenderAssetUsages::RENDER_WORLD,
         );
