@@ -1,3 +1,5 @@
+#force 
+
 name: Deploy to GitHub Pages
 
 on:
