@@ -13,15 +13,16 @@ use bevy::{
         texture::GpuImage,
         Render, RenderApp, RenderSet,
     },
+    utils::HashMap,
 };
 use binding_types::uniform_buffer;
 use bytemuck::bytes_of;
 
 mod gui;
 
-const SHADER1_HANDLE: Handle<Shader> = Handle::weak_from_u128(13378847158248049035);
-const SHADER2_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378847158248049035);
-const SHADER3_HANDLE: Handle<Shader> = Handle::weak_from_u128(33378847158248049035);
+const GENERATE_CIRCLE_HANDLE: Handle<Shader> = Handle::weak_from_u128(13378847158248049035);
+const DOMAIN_WARP_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378847158248049035);
+const EXTRACT_HANDLE: Handle<Shader> = Handle::weak_from_u128(33378847158248049035);
 const UTIL_NOISE_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(14378847158248049035);
 const UTIL_VECTOR_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(25378847158248049035);
 
@@ -100,7 +101,7 @@ struct ShaderConfig {
 enum ComputeNodeLabel {
     Compute1,
     Compute2,
-    // Compute3,
+    Compute3,
     Final,
 }
 
@@ -122,20 +123,20 @@ impl Plugin for GpuReadbackPlugin {
 
         load_internal_asset!(
             app,
-            SHADER1_HANDLE,
+            GENERATE_CIRCLE_HANDLE,
             "shaders/generate_circle.wgsl",
             Shader::from_wgsl
         );
         load_internal_asset!(
             app,
-            SHADER2_HANDLE,
+            DOMAIN_WARP_HANDLE,
             "shaders/domain_warp.wgsl",
             Shader::from_wgsl
         );
         load_internal_asset!(
             app,
-            SHADER3_HANDLE,
-            "shaders/3rd_pass.wgsl",
+            EXTRACT_HANDLE,
+            "shaders/extract.wgsl",
             Shader::from_wgsl
         );
     }
@@ -173,6 +174,13 @@ impl Plugin for GpuReadbackPlugin {
                 is_final: false,
             },
         );
+        render_graph.add_node(
+            ComputeNodeLabel::Compute3,
+            ComputeNode {
+                pipeline_index: 2,
+                is_final: false,
+            },
+        );
 
         // Add final pass
         render_graph.add_node(
@@ -185,7 +193,8 @@ impl Plugin for GpuReadbackPlugin {
 
         // Add edges between nodes
         render_graph.add_node_edge(ComputeNodeLabel::Compute1, ComputeNodeLabel::Compute2);
-        render_graph.add_node_edge(ComputeNodeLabel::Compute2, ComputeNodeLabel::Final);
+        render_graph.add_node_edge(ComputeNodeLabel::Compute2, ComputeNodeLabel::Compute3);
+        render_graph.add_node_edge(ComputeNodeLabel::Compute3, ComputeNodeLabel::Final);
     }
 }
 
@@ -234,8 +243,6 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         buffer_a,
         buffer_b,
         result,
-        // current_read: BufferIndex::A,
-        // iteration: 0,
     });
 }
 
@@ -245,30 +252,13 @@ struct GpuBufferBindGroups {
     final_pass_a: BindGroup,
     final_pass_b: BindGroup,
     uniform_buffer: Buffer,
-    // iteration: u32,
 }
 
 #[derive(Resource)]
 struct BindGroupSelection {
-    node_bind_groups: Vec<u32>, // Index of bind group to use for each node
-    final_pass: u32
-}
-
-fn prepare_bind_group_selection(mut commands: Commands, pipelines: Res<ComputePipelines>) {
-    let mut total_iterations = 0;
-    let node_bind_groups = pipelines
-        .pipeline_configs
-        .iter()
-        .map(|(_, iterations)| {
-            let bind_group = (total_iterations / iterations) % 2;
-            total_iterations += iterations;
-            bind_group
-        })
-        .collect();
-
-    let final_pass = (total_iterations) % 2;
-
-    commands.insert_resource(BindGroupSelection { node_bind_groups, final_pass });
+    // node_bind_groups: Vec<Selector>, // Index of bind group to use for each node
+    selectors: HashMap<u32, Vec<u32>>,
+    final_pass: u32,
 }
 
 fn prepare_bind_groups(
@@ -316,7 +306,7 @@ fn prepare_bind_groups(
         ),
     ];
 
-    let final_pass_a = render_device.create_bind_group(
+    let extract_a = render_device.create_bind_group(
         None,
         &pipeline.layout,
         &BindGroupEntries::sequential((
@@ -325,7 +315,7 @@ fn prepare_bind_groups(
             result_image.texture_view.into_binding(),
         )),
     );
-    let final_pass_b = render_device.create_bind_group(
+    let extract_b = render_device.create_bind_group(
         None,
         &pipeline.layout,
         &BindGroupEntries::sequential((
@@ -337,12 +327,18 @@ fn prepare_bind_groups(
 
     commands.insert_resource(GpuBufferBindGroups {
         bind_groups,
-        final_pass_a,
-        final_pass_b,
+        final_pass_a: extract_a,
+        final_pass_b: extract_b,
         uniform_buffer,
         // iteration: 0,
     });
 }
+
+#[derive(Resource)]
+struct ShaderConfigurator{
+    shader_configs: Vec<ShaderConfig>,
+}
+
 
 #[derive(Resource)]
 struct ComputePipelines {
@@ -353,6 +349,7 @@ struct ComputePipelines {
 
 impl FromWorld for ComputePipelines {
     fn from_world(world: &mut World) -> Self {
+
         let render_device = world.resource::<RenderDevice>();
         let layout = render_device.create_bind_group_layout(
             None,
@@ -371,42 +368,40 @@ impl FromWorld for ComputePipelines {
         // Define shader configurations
         let shader_configs = vec![
             ShaderConfig {
-                shader_handle: SHADER1_HANDLE,
+                shader_handle: GENERATE_CIRCLE_HANDLE,
                 iterations: 1,
             },
             ShaderConfig {
-                shader_handle: SHADER2_HANDLE,
+                shader_handle: DOMAIN_WARP_HANDLE,
+                iterations: 5,
+            },
+            ShaderConfig {
+                shader_handle: DOMAIN_WARP_HANDLE,
                 iterations: 1,
             },
-            // ShaderConfig {
-            //     shader_handle: SHADER3_HANDLE,
-            //     iterations: 1,
-            // },
         ];
 
         // Create pipeline for each shader with its iteration count
-        let pipeline_configs = shader_configs
-            .into_iter()
-            .map(|config| {
-                let pipeline_id =
-                    pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
-                        label: Some("compute".into()),
-                        layout: vec![layout.clone()],
-                        push_constant_ranges: Vec::new(),
-                        shader: config.shader_handle,
-                        shader_defs: Vec::new(),
-                        entry_point: "main".into(),
-                        zero_initialize_workgroup_memory: false,
-                    });
-                (pipeline_id, config.iterations)
-            })
-            .collect();
+        let mut pipeline_configs = Vec::new();
+        for config in shader_configs {
+            let pipeline_id = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
+                label: Some("compute".into()),
+                layout: vec![layout.clone()],
+                push_constant_ranges: Vec::new(),
+                shader: config.shader_handle,
+                shader_defs: Vec::new(),
+                entry_point: "main".into(),
+                zero_initialize_workgroup_memory: false,
+            });
+
+            pipeline_configs.push((pipeline_id, config.iterations));
+        }
 
         let final_pass = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: Some("Final pass".into()),
             layout: vec![layout.clone()],
             push_constant_ranges: Vec::new(),
-            shader: SHADER3_HANDLE,
+            shader: EXTRACT_HANDLE,
             shader_defs: Vec::new(),
             entry_point: "main".into(),
             zero_initialize_workgroup_memory: false,
@@ -418,6 +413,29 @@ impl FromWorld for ComputePipelines {
             final_pass,
         }
     }
+}
+
+fn prepare_bind_group_selection(mut commands: Commands, pipelines: Res<ComputePipelines>) {
+    let mut selectors = HashMap::new();
+    let mut total_iterations = 0;
+    let mut node = 0;
+    for (_, iterations) in &pipelines.pipeline_configs {
+        // println!("iterations: {}", iterations);
+        let mut node_selections = Vec::new();
+        for _ in 0..*iterations {
+            node_selections.push(total_iterations % 2);
+            total_iterations += 1;
+        }
+        selectors.insert(node, node_selections);
+        node += 1;
+    }
+
+    let final_pass = total_iterations % 2;
+
+    commands.insert_resource(BindGroupSelection {
+        selectors,
+        final_pass,
+    });
 }
 
 #[derive(Default)]
@@ -437,27 +455,20 @@ impl render_graph::Node for ComputeNode {
         let pipelines = world.resource::<ComputePipelines>();
         let bind_groups = world.resource::<GpuBufferBindGroups>();
         let encoder = render_context.command_encoder();
-        let bind_group_selection = world.resource::<BindGroupSelection>();
+        let selectors = world.resource::<BindGroupSelection>();
         if self.is_final {
             if let Some(pipeline) = pipeline_cache.get_compute_pipeline(pipelines.final_pass) {
                 encoder.push_debug_group("Final pass");
 
-                
-
                 {
-
-                    let group = if bind_group_selection.final_pass == 0 {
+                    let group = if selectors.final_pass == 0 {
                         &bind_groups.final_pass_a
-                      } else {
+                    } else {
                         &bind_groups.final_pass_b
-                      };    
+                    };
 
                     let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
-                    pass.set_bind_group(
-                        0, 
-                        // &bind_groups.final_pass_a,
-                        group,
-                         &[]);
+                    pass.set_bind_group(0, group, &[]);
                     pass.set_pipeline(pipeline);
                     pass.dispatch_workgroups(
                         ((BUFFER_LEN + 15) / 16) as u32,
@@ -471,8 +482,6 @@ impl render_graph::Node for ComputeNode {
             let (pipeline_id, iterations) = pipelines.pipeline_configs[self.pipeline_index];
 
             if let Some(pipeline) = pipeline_cache.get_compute_pipeline(pipeline_id) {
-                // let mut encoder = render_context.command_encoder();
-
                 for iteration in 0..iterations {
                     encoder.push_debug_group(&format!(
                         "Compute pass {} iteration {}",
@@ -480,15 +489,11 @@ impl render_graph::Node for ComputeNode {
                     ));
 
                     {
-                        let bind_group_idx =
-                            bind_group_selection.node_bind_groups[self.pipeline_index];
+                        let node = self.pipeline_index as u32;
+                        let selection = selectors.selectors[&node][iteration as usize];
                         let mut pass =
                             encoder.begin_compute_pass(&ComputePassDescriptor::default());
-                        pass.set_bind_group(
-                            0,
-                            &bind_groups.bind_groups[bind_group_idx as usize],
-                            &[],
-                        );
+                        pass.set_bind_group(0, &bind_groups.bind_groups[selection as usize], &[]);
                         pass.set_pipeline(pipeline);
                         pass.dispatch_workgroups(
                             ((BUFFER_LEN + 15) / 16) as u32,
