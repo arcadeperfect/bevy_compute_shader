@@ -13,7 +13,7 @@ struct Params {
 @group(0) @binding(1) var input_texture: texture_storage_2d<rgba32float, read>;
 @group(0) @binding(2) var output_texture: texture_storage_2d<rgba32float, write>;
 
-@compute @workgroup_size(8, 8)
+@compute @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let x = global_id.x;
     let y = global_id.y;
@@ -26,6 +26,5 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     
     let current = textureLoad(input_texture, upos);
 
-    // Write solid red to verify shader is writing
-    textureStore(output_texture, upos, vec4f(1-current.r, current.g, current.b, 1.0));
+    textureStore(output_texture, upos, vec4f(1.- current.x,1.,1.,1.));
 }
