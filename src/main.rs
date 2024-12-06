@@ -1,6 +1,3 @@
-//! Simple example demonstrating the use of the [`Readback`] component to read back data from the GPU
-//! using both a storage buffer and texture.
-
 use bevy::{
     asset::load_internal_asset,
     prelude::*,
@@ -28,15 +25,6 @@ const UTIL_VECTOR_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(2537884
 
 // The length of the buffer sent to the gpu
 const BUFFER_LEN: usize = 1024;
-
-#[derive(Resource)]
-struct GlobalIterationCounter(u32);
-
-impl Default for GlobalIterationCounter {
-    fn default() -> Self {
-        Self(0)
-    }
-}
 
 #[derive(Resource, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, ExtractResource, ShaderType)]
 #[repr(C)]
@@ -367,7 +355,7 @@ struct ShaderConfigurator {
 #[derive(Resource)]
 struct ComputePipelines {
     layout: BindGroupLayout,
-    pipeline_configs: Vec<(CachedComputePipelineId, u32)>, // (pipeline_id, iterations)
+    pipeline_configs: Vec<CachedComputePipelineId>, 
     final_pass: CachedComputePipelineId,
 }
 
@@ -404,7 +392,7 @@ impl FromWorld for ComputePipelines {
                 zero_initialize_workgroup_memory: false,
             });
 
-            pipeline_configs.push((pipeline_id, config.iterations));
+            pipeline_configs.push(pipeline_id);
         }
 
         let final_pass = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
@@ -496,11 +484,13 @@ impl render_graph::Node for ComputeNode {
                 encoder.pop_debug_group();
             }
         } else {
-            let (pipeline_id, iterations) = pipelines.pipeline_configs[self.pipeline_index];
+            let pipeline_id = pipelines.pipeline_configs[self.pipeline_index];
 
             if let Some(pipeline) = pipeline_cache.get_compute_pipeline(pipeline_id) {
                 let iters = shader_configurator.shader_configs[self.pipeline_index].iterations;
+                println!("new node");
                 for iteration in 0..iters {
+                    println!("iters: {}", iters);
                     encoder.push_debug_group(&format!(
                         "Compute pass {} iteration {}",
                         self.pipeline_index, iteration

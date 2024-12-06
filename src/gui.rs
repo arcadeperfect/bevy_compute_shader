@@ -26,8 +26,6 @@ fn ui_system(
 ) {
     // let mut radius = params.radius;
 
-    
-
     egui::SidePanel::left("control_panel")
         .resizable(false)
         .default_width(600.0)
@@ -40,10 +38,14 @@ fn ui_system(
                 ui.add(egui::Slider::new(&mut params.noise_scale, 0.0..=2.).text("scale"));
                 ui.add(egui::Slider::new(&mut params.noise_offset, 0.0..=20.).text("offset"));
                 ui.add(egui::Slider::new(&mut params.warp_amount, 0.0..=0.2).text("warp amount"));
-                ui.add(egui::Slider::new(&mut params.warp_scale, 1.0..=20.).text("warp scale"));                
-                ui.add(egui::DragValue::new(&mut shader_configurator.shader_configs[1].iterations));
+                ui.add(egui::Slider::new(&mut params.warp_scale, 1.0..=20.).text("warp scale"));
+                ui.horizontal(|ui| {
+                    ui.label("war iterations");
+                    ui.add(
+                        egui::DragValue::new(&mut shader_configurator.shader_configs[1].iterations)
+                            .range(0..=50),
+                    );
+                });
             });
         });
-
-
 }
