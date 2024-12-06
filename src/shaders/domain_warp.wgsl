@@ -24,8 +24,7 @@ fn sample_with_offset(pos: vec2<i32>, offset: vec2<f32>) -> vec4<f32> {
     );
     return textureLoad(input_texture, new_pos);
 }
-
-@compute @workgroup_size(8, 8)
+@compute @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let x = global_id.x;
     let y = global_id.y;
@@ -36,13 +35,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
 
 
-//     let upos = vec2<i32>(i32(x), i32(y));
-//     textureStore(output_texture, upos, vec4f(0.0, 0.0, 1.0, 1.0)); // Solid blue
-
-// }
-
-
     let upos = vec2<i32>(i32(x), i32(y));
+    
+    // // Just output solid red to verify shader is running
+    // textureStore(output_texture, upos, vec4<f32>(1.0, 0.0, 0.0, 1.0));
+
+    
     let dim = f32(params.dimensions);
     
     // Convert position to 0-1 range for noise generation
