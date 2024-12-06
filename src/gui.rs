@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts};
 
-use crate::ParamsUniform;
+use crate::{ParamsUniform, ShaderConfigurator};
 
 #[derive(Event)]
 pub struct ParamsChanged {
@@ -22,8 +22,11 @@ fn ui_system(
     mut contexts: EguiContexts,
     // mut param_events: EventWriter<ParamsChanged>,
     mut params: ResMut<ParamsUniform>,
+    mut shader_configurator: ResMut<ShaderConfigurator>,
 ) {
     // let mut radius = params.radius;
+
+    
 
     egui::SidePanel::left("control_panel")
         .resizable(false)
@@ -38,6 +41,9 @@ fn ui_system(
                 ui.add(egui::Slider::new(&mut params.noise_offset, 0.0..=20.).text("offset"));
                 ui.add(egui::Slider::new(&mut params.warp_amount, 0.0..=0.2).text("warp amount"));
                 ui.add(egui::Slider::new(&mut params.warp_scale, 1.0..=20.).text("warp scale"));                
+                ui.add(egui::DragValue::new(&mut shader_configurator.shader_configs[1].iterations));
             });
         });
+
+
 }

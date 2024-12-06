@@ -5,7 +5,7 @@ use bevy::{
     asset::load_internal_asset,
     prelude::*,
     render::{
-        extract_resource::{ExtractResource, ExtractResourcePlugin},
+        extract_resource::{self, ExtractResource, ExtractResourcePlugin},
         render_asset::{RenderAssetUsages, RenderAssets},
         render_graph::{self, RenderGraph, RenderLabel},
         render_resource::{binding_types::texture_storage_2d, *},
@@ -74,6 +74,7 @@ fn main() {
             GpuReadbackPlugin,
             ExtractResourcePlugin::<ImageBufferContainer>::default(),
             ExtractResourcePlugin::<ParamsUniform>::default(),
+            // ExtractResourcePlugin::<ShaderConfigurator>::default(),
             gui::GuiPlugin,
         ))
         .insert_resource(ClearColor(Color::BLACK))
@@ -108,6 +109,24 @@ enum ComputeNodeLabel {
 struct GpuReadbackPlugin;
 impl Plugin for GpuReadbackPlugin {
     fn build(&self, app: &mut App) {
+        let shader_configs = vec![
+            ShaderConfig {
+                shader_handle: GENERATE_CIRCLE_HANDLE,
+                iterations: 1,
+            },
+            ShaderConfig {
+                shader_handle: DOMAIN_WARP_HANDLE,
+                iterations: 5,
+            },
+            ShaderConfig {
+                shader_handle: DOMAIN_WARP_HANDLE,
+                iterations: 1,
+            },
+        ];
+
+        app.insert_resource(ShaderConfigurator { shader_configs });
+        app.add_plugins(ExtractResourcePlugin::<ShaderConfigurator>::default());
+
         load_internal_asset!(
             app,
             UTIL_NOISE_SHADER_HANDLE,
@@ -142,7 +161,13 @@ impl Plugin for GpuReadbackPlugin {
     }
 
     fn finish(&self, app: &mut App) {
+        
+        let shader_configs = app.world().resource::<ShaderConfigurator>().clone();
+        
         let render_app = app.sub_app_mut(RenderApp);
+
+
+        render_app.insert_resource(shader_configs);
 
         render_app.init_resource::<ComputePipelines>().add_systems(
             Render,
@@ -334,11 +359,10 @@ fn prepare_bind_groups(
     });
 }
 
-#[derive(Resource)]
-struct ShaderConfigurator{
+#[derive(Resource, Clone, ExtractResource)]
+struct ShaderConfigurator {
     shader_configs: Vec<ShaderConfig>,
 }
-
 
 #[derive(Resource)]
 struct ComputePipelines {
@@ -349,7 +373,7 @@ struct ComputePipelines {
 
 impl FromWorld for ComputePipelines {
     fn from_world(world: &mut World) -> Self {
-
+        let shader_configurator = world.resource::<ShaderConfigurator>();
         let render_device = world.resource::<RenderDevice>();
         let layout = render_device.create_bind_group_layout(
             None,
@@ -365,21 +389,7 @@ impl FromWorld for ComputePipelines {
 
         let pipeline_cache = world.resource::<PipelineCache>();
 
-        // Define shader configurations
-        let shader_configs = vec![
-            ShaderConfig {
-                shader_handle: GENERATE_CIRCLE_HANDLE,
-                iterations: 1,
-            },
-            ShaderConfig {
-                shader_handle: DOMAIN_WARP_HANDLE,
-                iterations: 5,
-            },
-            ShaderConfig {
-                shader_handle: DOMAIN_WARP_HANDLE,
-                iterations: 1,
-            },
-        ];
+        let shader_configs = shader_configurator.shader_configs.clone();
 
         // Create pipeline for each shader with its iteration count
         let mut pipeline_configs = Vec::new();
@@ -415,14 +425,18 @@ impl FromWorld for ComputePipelines {
     }
 }
 
-fn prepare_bind_group_selection(mut commands: Commands, pipelines: Res<ComputePipelines>) {
+fn prepare_bind_group_selection(mut commands: Commands, pipelines: Res<ComputePipelines>, shader_configurator: Res<ShaderConfigurator>) {
     let mut selectors = HashMap::new();
     let mut total_iterations = 0;
-    let mut node = 0;
-    for (_, iterations) in &pipelines.pipeline_configs {
-        // println!("iterations: {}", iterations);
+    let mut node: u32 = 0;
+
+
+    
+    for _ in &pipelines.pipeline_configs {
         let mut node_selections = Vec::new();
-        for _ in 0..*iterations {
+        
+        let i = shader_configurator.shader_configs[node as usize].iterations;
+        for _ in 0..i {
             node_selections.push(total_iterations % 2);
             total_iterations += 1;
         }
@@ -456,6 +470,9 @@ impl render_graph::Node for ComputeNode {
         let bind_groups = world.resource::<GpuBufferBindGroups>();
         let encoder = render_context.command_encoder();
         let selectors = world.resource::<BindGroupSelection>();
+        let shader_configurator = world.resource::<ShaderConfigurator>();
+        
+
         if self.is_final {
             if let Some(pipeline) = pipeline_cache.get_compute_pipeline(pipelines.final_pass) {
                 encoder.push_debug_group("Final pass");
@@ -482,7 +499,8 @@ impl render_graph::Node for ComputeNode {
             let (pipeline_id, iterations) = pipelines.pipeline_configs[self.pipeline_index];
 
             if let Some(pipeline) = pipeline_cache.get_compute_pipeline(pipeline_id) {
-                for iteration in 0..iterations {
+                let iters = shader_configurator.shader_configs[self.pipeline_index].iterations;
+                for iteration in 0..iters {
                     encoder.push_debug_group(&format!(
                         "Compute pass {} iteration {}",
                         self.pipeline_index, iteration
