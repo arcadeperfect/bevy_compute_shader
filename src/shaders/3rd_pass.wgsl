@@ -26,5 +26,5 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     
     let current = textureLoad(input_texture, upos);
 
-    textureStore(output_texture, upos, current);
+    textureStore(output_texture, upos, vec4f(1.- current.x,1.,1.,1.));
 }

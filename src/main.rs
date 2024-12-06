@@ -223,7 +223,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 
     commands.spawn((
         Sprite {
-            image: buffer_a.clone(),
+            image: result.clone(),
             custom_size: Some(Vec2::splat(1000.0)),
             ..Default::default()
         },
@@ -242,7 +242,8 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
 #[derive(Resource)]
 struct GpuBufferBindGroups {
     bind_groups: Vec<BindGroup>,
-    final_pass: BindGroup,
+    final_pass_a: BindGroup,
+    final_pass_b: BindGroup,
     uniform_buffer: Buffer,
     // iteration: u32,
 }
@@ -250,6 +251,7 @@ struct GpuBufferBindGroups {
 #[derive(Resource)]
 struct BindGroupSelection {
     node_bind_groups: Vec<u32>, // Index of bind group to use for each node
+    final_pass: u32
 }
 
 fn prepare_bind_group_selection(mut commands: Commands, pipelines: Res<ComputePipelines>) {
@@ -264,7 +266,9 @@ fn prepare_bind_group_selection(mut commands: Commands, pipelines: Res<ComputePi
         })
         .collect();
 
-    commands.insert_resource(BindGroupSelection { node_bind_groups });
+    let final_pass = (total_iterations) % 2;
+
+    commands.insert_resource(BindGroupSelection { node_bind_groups, final_pass });
 }
 
 fn prepare_bind_groups(
@@ -312,7 +316,7 @@ fn prepare_bind_groups(
         ),
     ];
 
-    let final_pass = render_device.create_bind_group(
+    let final_pass_a = render_device.create_bind_group(
         None,
         &pipeline.layout,
         &BindGroupEntries::sequential((
@@ -321,10 +325,20 @@ fn prepare_bind_groups(
             result_image.texture_view.into_binding(),
         )),
     );
+    let final_pass_b = render_device.create_bind_group(
+        None,
+        &pipeline.layout,
+        &BindGroupEntries::sequential((
+            uniform_buffer.as_entire_buffer_binding(),
+            image_b.texture_view.into_binding(),
+            result_image.texture_view.into_binding(),
+        )),
+    );
 
     commands.insert_resource(GpuBufferBindGroups {
         bind_groups,
-        final_pass,
+        final_pass_a,
+        final_pass_b,
         uniform_buffer,
         // iteration: 0,
     });
@@ -424,20 +438,26 @@ impl render_graph::Node for ComputeNode {
         let bind_groups = world.resource::<GpuBufferBindGroups>();
         let encoder = render_context.command_encoder();
         let bind_group_selection = world.resource::<BindGroupSelection>();
-        let mut i = 0;
-
-        // println!("Running compute node: {}", if self.is_final { "final" } else {
-        //     if self.pipeline_index == 0 { "first" }
-        //     else if self.pipeline_index == 1 { "second" }
-        //     else { "unknown" }
-        // });
-
         if self.is_final {
             if let Some(pipeline) = pipeline_cache.get_compute_pipeline(pipelines.final_pass) {
                 encoder.push_debug_group("Final pass");
+
+                
+
                 {
+
+                    let group = if bind_group_selection.final_pass == 0 {
+                        &bind_groups.final_pass_a
+                      } else {
+                        &bind_groups.final_pass_b
+                      };    
+
                     let mut pass = encoder.begin_compute_pass(&ComputePassDescriptor::default());
-                    pass.set_bind_group(0, &bind_groups.final_pass, &[]);
+                    pass.set_bind_group(
+                        0, 
+                        // &bind_groups.final_pass_a,
+                        group,
+                         &[]);
                     pass.set_pipeline(pipeline);
                     pass.dispatch_workgroups(
                         ((BUFFER_LEN + 15) / 16) as u32,
