@@ -16,9 +16,17 @@ struct Params {
     warp_scale: f32, 
 }
 
+const BUFFER_LEN = 1024u;
+struct DataGrid{
+    floats: array<array<array<f32, 8>, BUFFER_LEN>, BUFFER_LEN>,
+    ints: array<array<array<i32, 8>, BUFFER_LEN>, BUFFER_LEN>,
+};
+
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var input_texture: texture_storage_2d<rgba32float, read>;
 @group(0) @binding(2) var output_texture: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(3) var<storage, read_write> input_grid: DataGrid;
+@group(0) @binding(4) var<storage, read_write> output_grid: DataGrid;
 
 fn sample_with_offset(pos: vec2<i32>, offset: vec2<f32>) -> vec4<f32> {
     let dim = f32(params.dimensions);
@@ -39,6 +47,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
 
     let upos = vec2<i32>(i32(x), i32(y));
+
+    let current = textureLoad(input_texture, upos);
+    // textureStore(output_texture, upos, current);
     
     // // Just output solid red to verify shader is running
     // textureStore(output_texture, upos, vec4<f32>(1.0, 0.0, 0.0, 1.0));

@@ -22,9 +22,17 @@ struct Params {
     edge_suppress_mix: f32
 }
 
+const BUFFER_LEN = 1024u;
+struct DataGrid{
+    floats: array<array<array<f32, 8>, BUFFER_LEN>, BUFFER_LEN>,
+    ints: array<array<array<i32, 8>, BUFFER_LEN>, BUFFER_LEN>,
+};
+
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var input_texture: texture_storage_2d<rgba32float, read>;
 @group(0) @binding(2) var output_texture: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(3) var<storage, read_write> input_grid: DataGrid;
+@group(0) @binding(4) var<storage, read_write> output_grid: DataGrid;
 
 fn get_weighted_neighbor_count(x: i32, y: i32, radius: f32) -> f32 {
     var found = 0.0;
@@ -52,7 +60,7 @@ fn get_weighted_neighbor_count(x: i32, y: i32, radius: f32) -> f32 {
             }
 
             let new_pos = vec2<i32>(new_x, new_y);
-            let v = textureLoad(input_texture, new_pos).a;
+            let v = textureLoad(input_texture, new_pos).r;
             
             // Weight by distance from center
             let weight = 1.0 - sqrt(dist_sq) / radius;
@@ -79,15 +87,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let upos = vec2<i32>(i32(x), i32(y));
     let current = textureLoad(input_texture, upos);
     var edge_dist = current.b;
-    let center_dist = current.g;
-    let nze = current.a;
+    let nze = current.r;
 
     let scaled_radius = params.ca_search_radius * (8.0 / (f32(params.dimensions) / 128.0));
     let nbs = get_weighted_neighbor_count(i32(x), i32(y), scaled_radius);
 
     var thresh = params.ca_thresh;
-    // edge_dist = params.radius / edge_dist;
-    
     var weighted_thresh = thresh * pow((1-edge_dist), params.ca_edge_pow);
     thresh = mix(thresh, weighted_thresh, params.edge_suppress_mix);
     thresh = utils::remap(thresh, 0., 1., 0.14, 0.31);
@@ -100,16 +105,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         1.,
         selector
     );
-
-    var result = current.r - caves;
-
-    let norm_edge = edge_dist / current.z;
-
-    textureStore(output_texture, upos, vec4f(current.r, current.g, current.b, caves));
-
+    textureStore(output_texture, upos, vec4f(caves, current.b, current.g, current.a));
 }
 
 // r contains generated terrain
 // g contains distance field from center
 // b contains distance field from edges
 // a is the deformed radius
+

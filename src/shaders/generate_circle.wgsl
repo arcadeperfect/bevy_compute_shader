@@ -21,9 +21,17 @@ struct Params {
     edge_suppress_mix: f32
 }
 
+const BUFFER_LEN = 1024u;
+struct DataGrid{
+    floats: array<array<array<f32, 8>, BUFFER_LEN>, BUFFER_LEN>,
+    ints: array<array<array<i32, 8>, BUFFER_LEN>, BUFFER_LEN>,
+};
+
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var input_texture: texture_storage_2d<rgba32float, read>;
 @group(0) @binding(2) var output_texture: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(3) var<storage, read_write> input_grid: DataGrid;
+@group(0) @binding(4) var<storage, read_write> output_grid: DataGrid;
 
 // Power bias to make peaks more pronounced
 fn power_bias(n: f32, power: f32) -> f32{
@@ -69,13 +77,27 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         return;
     }
 
+    let upos = vec2<i32>(i32(x), i32(y)); 
+    
+    let current = textureLoad(input_texture, upos);
+    // textureStore(output_texture, upos, current);
+    
+    
     let dim = params.dimensions;
     
+    
+
+
+
+
     // normalize the coordinates
     var normd_pos = vec2f(
         f32(x) / f32(dim),
         f32(y) / f32(dim)
     );
+
+
+
 
 
     let seed_mult = 10.0;
@@ -95,19 +117,28 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let deformed_radius = params.radius + result;
     let dist_to_center = distance(normd_pos, center);
-    let upos = vec2<i32>(i32(x), i32(y)); 
 
-    let v = select(0.0, 1.0, dist_to_center <= deformed_radius);
+
+    let v = select(0, 1, dist_to_center <= deformed_radius);
 
     normd_pos = normd_pos - center;                 // transform so that 0,0 is the center
     let mag = length(normd_pos);                    // the distance from this pixel to the center
     normd_pos = vec2f(mag, 0.0);                    // create a new vector of the same length, but on the x axis
     let edge = vec2f(deformed_radius, 0.0);         // create a new vector on the same axis, at the distance to the edge
-    // let dist_to_edge = distance(normd_pos, edge);   // calculate the distance to the edge
+  
     var dist_to_edge = edge.x - normd_pos.x;
-    // dist_to_edge = dist_to_edge / deformed_radius;
+  
     dist_to_edge = dist_to_edge * params.ca_edge_pow;
-    textureStore(output_texture, upos, vec4<f32>(v , dist_to_center, dist_to_edge, deformed_radius));    
+    textureStore(output_texture, upos, vec4<f32>(dist_to_center , dist_to_edge, deformed_radius, dist_to_edge / deformed_radius));   
+    output_grid.ints[upos.x][upos.y][0] = v;
+    
+    // textureStore(output_texture, upos, vec4<f32>(v , 0., 0., 0.));   
+    // output_grid.floats[upos.x][upos.y][1] = dist_to_edge;
+    // output_grid.floats[upos.x][upos.y][2] = deformed_radius;
+    // output_grid.floats[upos.x][upos.y][3] = dist_to_edge / deformed_radius;
+
+    // input_grid.data[0][0] = 0.2;
+    // output_grid.data[0][0] = 0.6;
 } 
 
 // r contains generated terrain

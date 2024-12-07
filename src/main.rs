@@ -254,11 +254,23 @@ struct ImageBufferContainer {
     data_buffer_b:  Handle<ShaderStorageBuffer>,
 }
 
-#[derive(Copy, Clone, Pod, Zeroable, Default, ShaderType)]
+
+// #[derive(Copy, Clone, Pod, Zeroable, ShaderType, Default)]
+// #[repr(C)]
+// struct FloatCell {
+//     values: [f32; 8]
+// }
+
+// struct IntCell {
+//     values: [f32; 8]
+// }
+
+#[derive(Copy, Clone, Pod, Zeroable, ShaderType)]
 #[repr(C)]
-struct Grid2D {
+struct DataGrid {
     // This creates a 10x20 grid
-    data: [[f32; 20]; 10],
+    floats: [[[f32; 8]; BUFFER_LEN]; BUFFER_LEN],
+    ints: [[[i32; 8]; BUFFER_LEN]; BUFFER_LEN],
 }
 
 fn setup(
@@ -293,16 +305,18 @@ fn setup(
 
 
 
-    let grid1 = Grid2D {
-        data: [[0.0; 20]; 10],
+    let grid1 = DataGrid {
+        floats: [[[0.0; 8]; BUFFER_LEN]; BUFFER_LEN],
+        ints: [[[0; 8]; BUFFER_LEN]; BUFFER_LEN],
     };
 
     let mut buffer1 = ShaderStorageBuffer::from(vec![grid1]);
     buffer1.buffer_description.usage |= BufferUsages::COPY_SRC;
     let buffer1_handle = buffers.add(buffer1);
     
-    let grid2 = Grid2D {
-        data: [[0.0; 20]; 10],
+    let grid2 = DataGrid {
+        floats: [[[0.0; 8]; BUFFER_LEN]; BUFFER_LEN],
+        ints: [[[0; 8]; BUFFER_LEN]; BUFFER_LEN],
     };
 
     let mut buffer2 = ShaderStorageBuffer::from(vec![grid2]);
@@ -364,7 +378,7 @@ fn prepare_bind_groups(
     render_queue.write_buffer(&uniform_buffer, 0, bytes_of(&*params_res));
 
     let buffer_a = buffers.get(&buffer_container.data_buffer_a).unwrap();
-    let buffer_b = buffers.get(&buffer_container.data_buffer_a).unwrap();
+    let buffer_b = buffers.get(&buffer_container.data_buffer_b).unwrap();
 
     let image_a = images.get(&buffer_container.tex_buffer_a).unwrap();
     let image_b = images.get(&buffer_container.tex_buffer_b).unwrap();
@@ -405,6 +419,7 @@ fn prepare_bind_groups(
             image_a.texture_view.into_binding(),
             result_image.texture_view.into_binding(),
             buffer_a.buffer.as_entire_buffer_binding(),
+            buffer_b.buffer.as_entire_buffer_binding(),
         )),
     );
     let extract_b = render_device.create_bind_group(
@@ -415,6 +430,7 @@ fn prepare_bind_groups(
             image_b.texture_view.into_binding(),
             result_image.texture_view.into_binding(),
             buffer_b.buffer.as_entire_buffer_binding(),
+            buffer_a.buffer.as_entire_buffer_binding(),
         )),
     );
 
@@ -451,8 +467,8 @@ impl FromWorld for ComputePipelines {
                     uniform_buffer::<ParamsUniform>(false),
                     texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::ReadOnly),
                     texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
-                    storage_buffer::<Grid2D>(false),
-                    storage_buffer::<Grid2D>(false),
+                    storage_buffer::<DataGrid>(false),
+                    storage_buffer::<DataGrid>(false),
                 ),
             ),
         );
