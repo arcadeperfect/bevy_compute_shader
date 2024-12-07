@@ -1,19 +1,15 @@
+use std::array;
+
 use bevy::{
     asset::load_internal_asset,
     prelude::*,
     render::{
-        extract_resource::{self, ExtractResource, ExtractResourcePlugin},
-        render_asset::{RenderAssetUsages, RenderAssets},
-        render_graph::{self, RenderGraph, RenderLabel},
-        render_resource::{binding_types::texture_storage_2d, *},
-        renderer::{RenderContext, RenderDevice, RenderQueue},
-        texture::GpuImage,
-        Render, RenderApp, RenderSet,
+        self, extract_resource::{self, ExtractResource, ExtractResourcePlugin}, render_asset::{RenderAssetUsages, RenderAssets}, render_graph::{self, RenderGraph, RenderLabel}, render_resource::{binding_types::texture_storage_2d, *}, renderer::{RenderContext, RenderDevice, RenderQueue}, storage::{GpuShaderStorageBuffer, ShaderStorageBuffer}, texture::GpuImage, Render, RenderApp, RenderSet
     },
     utils::HashMap,
 };
-use binding_types::uniform_buffer;
-use bytemuck::bytes_of;
+use binding_types::{storage_buffer, uniform_buffer};
+use bytemuck::{bytes_of, Pod, Zeroable};
 
 mod gui;
 
@@ -39,19 +35,18 @@ struct ParamsUniform {
     noise_offset: f32,
     power_bias: f32,
     flatness: f32,
-    steepness:f32,
-    mix:f32,
+    steepness: f32,
+    mix: f32,
     warp_amount: f32,
-    warp_scale: f32, 
+    warp_scale: f32,
     noise_weight: f32,
     ca_thresh: f32,
     ca_search_radius: f32,
     ca_edge_pow: f32,
-    edge_suppress_mix: f32
+    edge_suppress_mix: f32,
 }
 
 impl Default for ParamsUniform {
-
     fn default() -> Self {
         Self {
             dimensions: BUFFER_LEN as u32,
@@ -70,7 +65,7 @@ impl Default for ParamsUniform {
             ca_thresh: 0.24,
             ca_search_radius: 3.8,
             ca_edge_pow: 1.5,
-            edge_suppress_mix: 1.0
+            edge_suppress_mix: 1.0,
         }
     }
 }
@@ -166,12 +161,7 @@ impl Plugin for GpuReadbackPlugin {
             "shaders/domain_warp.wgsl",
             Shader::from_wgsl
         );
-        load_internal_asset!(
-            app,
-            CA_HANDLE,
-            "shaders/ca.wgsl",
-            Shader::from_wgsl
-        );
+        load_internal_asset!(app, CA_HANDLE, "shaders/ca.wgsl", Shader::from_wgsl);
         load_internal_asset!(
             app,
             PRE_CA_HANDLE,
@@ -257,12 +247,26 @@ impl Plugin for GpuReadbackPlugin {
 
 #[derive(Resource, ExtractResource, Clone)]
 struct ImageBufferContainer {
-    buffer_a: Handle<Image>,
-    buffer_b: Handle<Image>,
+    tex_buffer_a: Handle<Image>,
+    tex_buffer_b: Handle<Image>,
     result: Handle<Image>,
+    data_buffer_a:  Handle<ShaderStorageBuffer>,
+    data_buffer_b:  Handle<ShaderStorageBuffer>,
 }
 
-fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
+#[derive(Copy, Clone, Pod, Zeroable, Default, ShaderType)]
+#[repr(C)]
+struct Grid2D {
+    // This creates a 10x20 grid
+    data: [[f32; 20]; 10],
+}
+
+fn setup(
+    mut commands: Commands,
+    mut images: ResMut<Assets<Image>>,
+    mut buffers: ResMut<Assets<ShaderStorageBuffer>>,
+    render_device: Res<RenderDevice>,
+) {
     commands.spawn((Camera2d::default(),));
 
     let size = Extent3d {
@@ -271,7 +275,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         ..default()
     };
 
-    let mut create_image = || {
+    let mut create_texture_image = || {
         let mut image = Image::new_fill(
             size,
             TextureDimension::D2,
@@ -283,9 +287,29 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
         images.add(image)
     };
 
-    let buffer_a = create_image();
-    let buffer_b = create_image();
-    let result = create_image();
+    let texture_buffer_a = create_texture_image();
+    let texture_buffer_b = create_texture_image();
+    let result = create_texture_image();
+
+
+
+    let grid1 = Grid2D {
+        data: [[0.0; 20]; 10],
+    };
+
+    let mut buffer1 = ShaderStorageBuffer::from(vec![grid1]);
+    buffer1.buffer_description.usage |= BufferUsages::COPY_SRC;
+    let buffer1_handle = buffers.add(buffer1);
+    
+    let grid2 = Grid2D {
+        data: [[0.0; 20]; 10],
+    };
+
+    let mut buffer2 = ShaderStorageBuffer::from(vec![grid2]);
+    buffer2.buffer_description.usage |= BufferUsages::COPY_SRC;
+
+    let buffer2_handle = buffers.add(buffer2);
+
 
     commands.spawn((
         Sprite {
@@ -297,9 +321,11 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     ));
 
     commands.insert_resource(ImageBufferContainer {
-        buffer_a,
-        buffer_b,
+        tex_buffer_a: texture_buffer_a,
+        tex_buffer_b: texture_buffer_b,
         result,
+        data_buffer_a: buffer1_handle,
+        data_buffer_b: buffer2_handle
     });
 }
 
@@ -324,6 +350,7 @@ fn prepare_bind_groups(
     render_device: Res<RenderDevice>,
     buffer_container: Res<ImageBufferContainer>,
     images: Res<RenderAssets<GpuImage>>,
+    buffers: Res<RenderAssets<GpuShaderStorageBuffer>>,
     params_res: Res<ParamsUniform>,
     render_queue: Res<RenderQueue>,
 ) {
@@ -336,8 +363,11 @@ fn prepare_bind_groups(
 
     render_queue.write_buffer(&uniform_buffer, 0, bytes_of(&*params_res));
 
-    let image_a = images.get(&buffer_container.buffer_a).unwrap();
-    let image_b = images.get(&buffer_container.buffer_b).unwrap();
+    let buffer_a = buffers.get(&buffer_container.data_buffer_a).unwrap();
+    let buffer_b = buffers.get(&buffer_container.data_buffer_a).unwrap();
+
+    let image_a = images.get(&buffer_container.tex_buffer_a).unwrap();
+    let image_b = images.get(&buffer_container.tex_buffer_b).unwrap();
     let result_image = images.get(&buffer_container.result).unwrap();
 
     let bind_groups = vec![
@@ -349,6 +379,8 @@ fn prepare_bind_groups(
                 uniform_buffer.as_entire_buffer_binding(),
                 image_a.texture_view.into_binding(),
                 image_b.texture_view.into_binding(),
+                buffer_a.buffer.as_entire_buffer_binding(),
+                buffer_b.buffer.as_entire_buffer_binding(),
             )),
         ),
         // B -> A
@@ -359,6 +391,8 @@ fn prepare_bind_groups(
                 uniform_buffer.as_entire_buffer_binding(),
                 image_b.texture_view.into_binding(),
                 image_a.texture_view.into_binding(),
+                buffer_b.buffer.as_entire_buffer_binding(),
+                buffer_a.buffer.as_entire_buffer_binding(),
             )),
         ),
     ];
@@ -370,6 +404,7 @@ fn prepare_bind_groups(
             uniform_buffer.as_entire_buffer_binding(),
             image_a.texture_view.into_binding(),
             result_image.texture_view.into_binding(),
+            buffer_a.buffer.as_entire_buffer_binding(),
         )),
     );
     let extract_b = render_device.create_bind_group(
@@ -379,6 +414,7 @@ fn prepare_bind_groups(
             uniform_buffer.as_entire_buffer_binding(),
             image_b.texture_view.into_binding(),
             result_image.texture_view.into_binding(),
+            buffer_b.buffer.as_entire_buffer_binding(),
         )),
     );
 
@@ -415,6 +451,8 @@ impl FromWorld for ComputePipelines {
                     uniform_buffer::<ParamsUniform>(false),
                     texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::ReadOnly),
                     texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
+                    storage_buffer::<Grid2D>(false),
+                    storage_buffer::<Grid2D>(false),
                 ),
             ),
         );
@@ -561,3 +599,4 @@ impl render_graph::Node for ComputeNode {
         Ok(())
     }
 }
+
