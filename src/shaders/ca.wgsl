@@ -1,3 +1,7 @@
+#import compute::noise
+#import compute::utils
+
+
 struct Params {
     dimensions: u32,
     radius: f32,
@@ -16,10 +20,15 @@ struct Params {
     ca_search_radius: f32
 }
 
+@group(0) @binding(0) var<uniform> params: Params;
+@group(0) @binding(1) var input_texture: texture_storage_2d<rgba32float, read>;
+@group(0) @binding(2) var output_texture: texture_storage_2d<rgba32float, write>;
+
 fn get_weighted_neighbor_count(x: i32, y: i32, radius: f32) -> f32 {
     var found = 0.0;
     let dim = i32(params.dimensions);
     let r = i32(ceil(radius));
+    var count = 0.0;
 
     for(var i = -r; i <= r; i++) {
         for(var j = -r; j <= r; j++) {
@@ -46,16 +55,34 @@ fn get_weighted_neighbor_count(x: i32, y: i32, radius: f32) -> f32 {
             // Weight by distance from center
             let weight = 1.0 - sqrt(dist_sq) / radius;
             found += v * weight;
+            count += 1.0;
         }
     }
-    return found;
+
+    let normed: f32 = found / count;
+
+    return normed;
 }
 
+// fn probb(v: f32) -> bool{
 
+//     if(v <= 0){
+//         return false;
+//     }
+//     if(v >= 1){
+//         return true;
+//     }
 
-@group(0) @binding(0) var<uniform> params: Params;
-@group(0) @binding(1) var input_texture: texture_storage_2d<rgba32float, read>;
-@group(0) @binding(2) var output_texture: texture_storage_2d<rgba32float, write>;
+//     var rand = noise::rand11(f32(x * y * y));
+//     return rand < v;
+// }
+
+// regarding input:
+// r contains generated terrain
+// g contains distance field from center
+// b contains distance field from edges
+// a contains weighted noise
+
 
 // @compute @workgroup_size(16, 16)
 // fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
@@ -66,45 +93,36 @@ fn get_weighted_neighbor_count(x: i32, y: i32, radius: f32) -> f32 {
 //         return;
 //     }
 
+    
+
 //     let upos = vec2<i32>(i32(x), i32(y));
 //     let current = textureLoad(input_texture, upos);
-
+//     let edge_dist = current.b;
 //     let nze = current.a;
-    
+
 //     let scaled_radius = params.ca_search_radius * (8.0 / (f32(params.dimensions) / 128.0));
-//     let neighbor_weight = get_weighted_neighbor_count(i32(x), i32(y), scaled_radius);
-    
-//     let base_threshold = params.ca_thresh * (scaled_radius / 4.0);
-    
-//     // Increased stability bias for more persistence
-//     let stability_bias = 0.25;
-//     let threshold = select(
-//         base_threshold,
-//         base_threshold * (1.0 - stability_bias),
-//         nze > 0.5
+//     let nbs = get_weighted_neighbor_count(i32(x), i32(y), scaled_radius);
+
+//     var thresh = params.ca_thresh;
+
+
+//     // true means we are a cave and we will be subtracted from the planet
+
+//     var selector = nbs > thresh;
+
+//     var rand = noise::rand11(f32(x * y * y));
+
+//     var caves = select(
+//         0.,
+//         1.,
+//         selector
 //     );
+//     // caves = caves + edge_dist;
 
-//     // Wider transition zone
-//     let transition_width = 0.2 * base_threshold;
-//     let diff = neighbor_weight - threshold;
+//     var result = current.r - caves;
     
-//     // Use the transition value directly instead of as a selector
-//     let transition = 1.0 - smoothstep(-transition_width, transition_width, diff);
-    
-//     // Strong bias toward maintaining current state unless transition is significant
-//     let persistence = 0.7;
-//     let v = select(
-//         transition,
-//         nze,
-//         abs(nze - transition) < persistence
-//     );
-
-//     var result = current.x - nze;
-//     result = clamp(result, 0., 1.);
-
-//     textureStore(output_texture, upos, vec4f(result, current.y, current.z, nze));
+//     textureStore(output_texture, upos, vec4f(current.x, current.y, current.z, caves));
 // }
-
 @compute @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let x = global_id.x;
@@ -116,25 +134,45 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let upos = vec2<i32>(i32(x), i32(y));
     let current = textureLoad(input_texture, upos);
-    
+    let edge_dist = current.b;
     let nze = current.a;
 
-    // let result = nze;
+    let scaled_radius = params.ca_search_radius * (8.0 / (f32(params.dimensions) / 128.0));
+    let nbs = get_weighted_neighbor_count(i32(x), i32(y), scaled_radius);
 
-    // let caves = 1.0;
+    var thresh = params.ca_thresh;
 
-    let nbs = get_weighted_neighbor_count(i32(x), i32(y), params.ca_search_radius);
+    // Generate base cave selector from cellular automata
+    var selector = nbs > thresh;
+    
+    // Get random value
+    var rand = noise::rand11(f32(x * y * y));
+    
+    let seed = vec2f(f32(x), f32(y));
+    var n = noise::fbm(seed * 0.01);
+    n = n * 0.5 + 0.5;
+    n = n - 0.3;
+    n = n * 0.1;
+    // Create an exponential edge falloff factor
+    // pow(x, n) where n > 1 creates exponential curve
+    // Higher power = sharper falloff
+    let edge_power = n * 5.;  // Adjust this to control falloff sharpness
+    let edge_scale = n;  // Adjust this to control where falloff starts
+    let edge_factor = pow(clamp(edge_dist / edge_scale, 0.0, 1.0), edge_power);
+    
+    // Only allow cave formation if random value is less than edge factor
+    selector = selector && (rand < edge_factor);
 
     var caves = select(
         0.,
         1.,
-        nbs > params.ca_thresh
+        selector
     );
 
     var result = current.r - caves;
-
-    // // result = current.z - result;
-    // result = clamp (result, 0., 1.);
-
+    
     textureStore(output_texture, upos, vec4f(current.x, current.y, current.z, caves));
 }
+
+// r, g, and b are left as is
+// caves are added to a

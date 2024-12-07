@@ -33,12 +33,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
     let pos = vec2f(f32(x), f32(y));
     let upos = vec2<i32>(i32(x), i32(y));
-    let v = noise::rand11(f32(x * y));
+    // let v = noise::rand11(f32(x * (y*y)));
+    let v = noise::rand11(f32(x ^ (y << 16)));
     let s = select(0.,1.,v <= params.noise_weight);
-
-
     var current = textureLoad(input_texture, upos);
-    // var result = current.x-s;
-    // result = clamp(result, 0., 1.);
+
     textureStore(output_texture, upos, vec4f(current.x, current.y, current.z, f32(s)));
 }
+
+// r, g, and b are left as is
+// noise is added to a

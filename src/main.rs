@@ -64,7 +64,7 @@ impl Default for ParamsUniform {
             warp_amount: 0.0,
             warp_scale: 0.0,
             noise_weight: 0.53,
-            ca_thresh: 7.5,
+            ca_thresh: 0.17,
             ca_search_radius: 3.8
         }
     }

@@ -66,7 +66,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let dim = params.dimensions;
     
-    var pos = vec2f(
+    var normd_pos = vec2f(
         f32(x) / f32(dim),
         f32(y) / f32(dim)
     );
@@ -75,7 +75,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let seed_mult = 10.0;
     let center = vec2<f32>(0.5, 0.5);
     
-    let angle = atan2(pos.x - center.x, pos.y - center.y);
+    let angle = atan2(normd_pos.x - center.x, normd_pos.y - center.y);
     let seed = vec2f(cos(angle), sin(angle)); 
     var n = noise::fbm((seed * seed_mult * params.noise_scale) + params.noise_offset);
 
@@ -88,16 +88,23 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var result = mix(n, m, params.mix);
 
     let r = params.radius * 0.4 + result;
-    let dist = distance(pos, center);
+    let dist_to_center = distance(normd_pos, center);
     let upos = vec2<i32>(i32(x), i32(y)); 
 
-    let v = select(0.0, 1.0, dist <= r);
+    let v = select(0.0, 1.0, dist_to_center <= r);
 
-    pos = pos - center;
-    let mag = length(pos);
-    pos = vec2f(mag, 0.0);
+    normd_pos = normd_pos - center;
+    let mag = length(normd_pos);
+    normd_pos = vec2f(mag, 0.0);
     let edge = vec2f(r, 0.0);
+    let dist_to_edge = distance(normd_pos, edge);
 
-    textureStore(output_texture, upos, vec4<f32>(v , dist, distance(pos, edge), 1.));    
+    textureStore(output_texture, upos, vec4<f32>(v , dist_to_center, dist_to_edge, 1.));    
 } 
+
+// r contains generated terrain
+// g contains distance field from center
+// b contains distance field from edges
+// a is unused
+
 

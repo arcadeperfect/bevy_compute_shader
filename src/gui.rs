@@ -57,10 +57,10 @@ fn ui_system(
                     ui.label("ca iterations");
                     ui.add(
                         egui::DragValue::new(&mut shader_configurator.shader_configs[3].iterations)
-                        .range(0..=50),
+                        .range(0..=100),
                     );
                 });
-                ui.add(egui::Slider::new(&mut params.ca_thresh, 0.1..=20.).text("thresh"));
+                ui.add(egui::Slider::new(&mut params.ca_thresh, 0.0..=1.).text("thresh"));
                 ui.add(egui::Slider::new(&mut params.ca_search_radius, 0.1..=6.).text("search radius"));
 
             });

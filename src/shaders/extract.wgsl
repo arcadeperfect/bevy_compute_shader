@@ -29,5 +29,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var r = current.r - current.a;
     r = clamp(r, 0., 1.);
 
-    textureStore(output_texture, upos, vec4f(r,current.y,current.z,1.));
+    // textureStore(output_texture, upos, vec4f(r,r,r,1.));
+    textureStore(output_texture, upos, vec4f(r, 0., 0., 1.0));
 }
