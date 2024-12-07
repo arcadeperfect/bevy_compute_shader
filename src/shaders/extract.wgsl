@@ -30,5 +30,5 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     r = clamp(r, 0., 1.);
 
     // textureStore(output_texture, upos, vec4f(r,r,r,1.));
-    textureStore(output_texture, upos, vec4f(r, 0., 0., 1.0));
+    textureStore(output_texture, upos, vec4f(r, current.g, current.b, 1.0));
 }

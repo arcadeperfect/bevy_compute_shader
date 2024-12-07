@@ -156,7 +156,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Create an exponential edge falloff factor
     // pow(x, n) where n > 1 creates exponential curve
     // Higher power = sharper falloff
-    let edge_power = n * 5.;  // Adjust this to control falloff sharpness
+    let edge_power = n * 51.;  // Adjust this to control falloff sharpness
     let edge_scale = n;  // Adjust this to control where falloff starts
     let edge_factor = pow(clamp(edge_dist / edge_scale, 0.0, 1.0), edge_power);
     

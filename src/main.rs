@@ -34,7 +34,7 @@ struct ParamsUniform {
     dimensions: u32,
     radius: f32,
     noise_seed: u32,
-    noise_scale: f32,
+    noise_freq: f32,
     noise_amplitude: f32,
     noise_offset: f32,
     power_bias: f32,
@@ -49,13 +49,14 @@ struct ParamsUniform {
 }
 
 impl Default for ParamsUniform {
+
     fn default() -> Self {
         Self {
             dimensions: BUFFER_LEN as u32,
-            radius: 0.5,
+            radius: 0.75,
             noise_seed: 0,
-            noise_scale: 1.0,
-            noise_amplitude: 1.0,
+            noise_freq: 0.3,
+            noise_amplitude: 1.55,
             noise_offset: 0.0,
             power_bias: 1.8,
             flatness: 1.5,
