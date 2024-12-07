@@ -8,8 +8,12 @@ struct Params {
     noise_scale: f32,
     noise_amplitude: f32,
     noise_offset: f32,
-    warp_amount: f32,  // Controls the intensity of the warping
-    warp_scale: f32,   // Controls the scale of the noise used for warping
+    power_bias: f32,
+    flatness: f32,
+    steepness:f32,
+    mix:f32,
+    warp_amount: f32,
+    warp_scale: f32, 
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -33,7 +37,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if (x >= params.dimensions || y >= params.dimensions) {
         return;
     }
-
 
     let upos = vec2<i32>(i32(x), i32(y));
     

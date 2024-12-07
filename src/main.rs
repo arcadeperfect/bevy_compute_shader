@@ -19,6 +19,8 @@ mod gui;
 
 const GENERATE_CIRCLE_HANDLE: Handle<Shader> = Handle::weak_from_u128(13378847158248049035);
 const DOMAIN_WARP_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378847158248049035);
+const PRE_CA_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378547158240049035);
+const CA_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378547158248049035);
 const EXTRACT_HANDLE: Handle<Shader> = Handle::weak_from_u128(33378847158248049035);
 const UTIL_NOISE_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(14378847158248049035);
 const UTIL_VECTOR_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(25378847158248049035);
@@ -35,8 +37,15 @@ struct ParamsUniform {
     noise_scale: f32,
     noise_amplitude: f32,
     noise_offset: f32,
+    power_bias: f32,
+    flatness: f32,
+    steepness:f32,
+    mix:f32,
     warp_amount: f32,
-    warp_scale: f32,
+    warp_scale: f32, 
+    noise_weight: f32,
+    ca_thresh: f32,
+    ca_search_radius: f32
 }
 
 impl Default for ParamsUniform {
@@ -48,8 +57,15 @@ impl Default for ParamsUniform {
             noise_scale: 1.0,
             noise_amplitude: 1.0,
             noise_offset: 0.0,
+            power_bias: 1.8,
+            flatness: 1.5,
+            steepness: 1.3,
+            mix: 0.5,
             warp_amount: 0.0,
             warp_scale: 0.0,
+            noise_weight: 0.53,
+            ca_thresh: 7.5,
+            ca_search_radius: 3.8
         }
     }
 }
@@ -91,6 +107,7 @@ enum ComputeNodeLabel {
     Compute1,
     Compute2,
     Compute3,
+    Compute4,
     Final,
 }
 
@@ -107,8 +124,12 @@ impl Plugin for GpuReadbackPlugin {
                 iterations: 5,
             },
             ShaderConfig {
-                shader_handle: DOMAIN_WARP_HANDLE,
+                shader_handle: PRE_CA_HANDLE,
                 iterations: 1,
+            },
+            ShaderConfig {
+                shader_handle: CA_HANDLE,
+                iterations: 16,
             },
         ];
 
@@ -142,6 +163,18 @@ impl Plugin for GpuReadbackPlugin {
         );
         load_internal_asset!(
             app,
+            CA_HANDLE,
+            "shaders/ca.wgsl",
+            Shader::from_wgsl
+        );
+        load_internal_asset!(
+            app,
+            PRE_CA_HANDLE,
+            "shaders/pre_ca_noise.wgsl",
+            Shader::from_wgsl
+        );
+        load_internal_asset!(
+            app,
             EXTRACT_HANDLE,
             "shaders/extract.wgsl",
             Shader::from_wgsl
@@ -149,11 +182,9 @@ impl Plugin for GpuReadbackPlugin {
     }
 
     fn finish(&self, app: &mut App) {
-        
         let shader_configs = app.world().resource::<ShaderConfigurator>().clone();
-        
-        let render_app = app.sub_app_mut(RenderApp);
 
+        let render_app = app.sub_app_mut(RenderApp);
 
         render_app.insert_resource(shader_configs);
 
@@ -194,6 +225,13 @@ impl Plugin for GpuReadbackPlugin {
                 is_final: false,
             },
         );
+        render_graph.add_node(
+            ComputeNodeLabel::Compute4,
+            ComputeNode {
+                pipeline_index: 3,
+                is_final: false,
+            },
+        );
 
         // Add final pass
         render_graph.add_node(
@@ -207,7 +245,8 @@ impl Plugin for GpuReadbackPlugin {
         // Add edges between nodes
         render_graph.add_node_edge(ComputeNodeLabel::Compute1, ComputeNodeLabel::Compute2);
         render_graph.add_node_edge(ComputeNodeLabel::Compute2, ComputeNodeLabel::Compute3);
-        render_graph.add_node_edge(ComputeNodeLabel::Compute3, ComputeNodeLabel::Final);
+        render_graph.add_node_edge(ComputeNodeLabel::Compute3, ComputeNodeLabel::Compute4);
+        render_graph.add_node_edge(ComputeNodeLabel::Compute4, ComputeNodeLabel::Final);
     }
 }
 
@@ -355,7 +394,7 @@ struct ShaderConfigurator {
 #[derive(Resource)]
 struct ComputePipelines {
     layout: BindGroupLayout,
-    pipeline_configs: Vec<CachedComputePipelineId>, 
+    pipeline_configs: Vec<CachedComputePipelineId>,
     final_pass: CachedComputePipelineId,
 }
 
@@ -413,16 +452,18 @@ impl FromWorld for ComputePipelines {
     }
 }
 
-fn prepare_bind_group_selection(mut commands: Commands, pipelines: Res<ComputePipelines>, shader_configurator: Res<ShaderConfigurator>) {
+fn prepare_bind_group_selection(
+    mut commands: Commands,
+    pipelines: Res<ComputePipelines>,
+    shader_configurator: Res<ShaderConfigurator>,
+) {
     let mut selectors = HashMap::new();
     let mut total_iterations = 0;
     let mut node: u32 = 0;
 
-
-    
     for _ in &pipelines.pipeline_configs {
         let mut node_selections = Vec::new();
-        
+
         let i = shader_configurator.shader_configs[node as usize].iterations;
         for _ in 0..i {
             node_selections.push(total_iterations % 2);
@@ -459,7 +500,6 @@ impl render_graph::Node for ComputeNode {
         let encoder = render_context.command_encoder();
         let selectors = world.resource::<BindGroupSelection>();
         let shader_configurator = world.resource::<ShaderConfigurator>();
-        
 
         if self.is_final {
             if let Some(pipeline) = pipeline_cache.get_compute_pipeline(pipelines.final_pass) {
@@ -488,9 +528,8 @@ impl render_graph::Node for ComputeNode {
 
             if let Some(pipeline) = pipeline_cache.get_compute_pipeline(pipeline_id) {
                 let iters = shader_configurator.shader_configs[self.pipeline_index].iterations;
-                println!("new node");
+
                 for iteration in 0..iters {
-                    println!("iters: {}", iters);
                     encoder.push_debug_group(&format!(
                         "Compute pass {} iteration {}",
                         self.pipeline_index, iteration

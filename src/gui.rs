@@ -26,6 +26,8 @@ fn ui_system(
 ) {
     // let mut radius = params.radius;
 
+    let z = 0;
+
     egui::SidePanel::left("control_panel")
         .resizable(false)
         .default_width(600.0)
@@ -35,17 +37,32 @@ fn ui_system(
                 ui.label("radius");
                 ui.add(egui::Slider::new(&mut params.radius, 0.0..=1.).text("radius"));
                 ui.add(egui::Slider::new(&mut params.noise_amplitude, 0.0..=5.).text("amplitude"));
-                ui.add(egui::Slider::new(&mut params.noise_scale, 0.0..=2.).text("scale"));
+                ui.add(egui::Slider::new(&mut params.noise_scale, 0.0..=1.).text("frequency"));
                 ui.add(egui::Slider::new(&mut params.noise_offset, 0.0..=20.).text("offset"));
+                ui.add(egui::Slider::new(&mut params.power_bias, 0.0..=6.).text("power bias"));
+                ui.add(egui::Slider::new(&mut params.flatness, 0.0..=6.).text("flatness"));
+                ui.add(egui::Slider::new(&mut params.steepness, 0.0..=6.).text("steepness"));
+                ui.add(egui::Slider::new(&mut params.mix, 0.0..=1.).text("mix"));
                 ui.add(egui::Slider::new(&mut params.warp_amount, 0.0..=0.2).text("warp amount"));
                 ui.add(egui::Slider::new(&mut params.warp_scale, 1.0..=20.).text("warp scale"));
                 ui.horizontal(|ui| {
-                    ui.label("war iterations");
+                    ui.label("warp iterations");
                     ui.add(
                         egui::DragValue::new(&mut shader_configurator.shader_configs[1].iterations)
-                            .range(0..=50),
+                        .range(0..=50),
                     );
                 });
+                ui.add(egui::Slider::new(&mut params.noise_weight, 0.0..=1.).text("noise weight"));
+                ui.horizontal(|ui| {
+                    ui.label("ca iterations");
+                    ui.add(
+                        egui::DragValue::new(&mut shader_configurator.shader_configs[3].iterations)
+                        .range(0..=50),
+                    );
+                });
+                ui.add(egui::Slider::new(&mut params.ca_thresh, 0.1..=20.).text("thresh"));
+                ui.add(egui::Slider::new(&mut params.ca_search_radius, 0.1..=6.).text("search radius"));
+
             });
         });
 }
