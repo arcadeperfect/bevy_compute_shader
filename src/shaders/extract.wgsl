@@ -26,9 +26,19 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     
     let current = textureLoad(input_texture, upos);
 
+
+    let dist = current.g / current.a;
+    textureStore(output_texture, upos, vec4f(dist));
+
     var r = current.r - current.a;
     r = clamp(r, 0., 1.);
 
     // textureStore(output_texture, upos, vec4f(r,r,r,1.));
+    // textureStore(output_texture, upos, vec4f(r, current.g, current.b, 1.0));
     textureStore(output_texture, upos, vec4f(r, current.g, current.b, 1.0));
 }
+
+// r contains generated terrain
+// g contains distance field from center
+// b contains distance field from edges
+// a is the deformed radius

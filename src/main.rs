@@ -45,7 +45,9 @@ struct ParamsUniform {
     warp_scale: f32, 
     noise_weight: f32,
     ca_thresh: f32,
-    ca_search_radius: f32
+    ca_search_radius: f32,
+    ca_edge_pow: f32,
+    edge_suppress_mix: f32
 }
 
 impl Default for ParamsUniform {
@@ -53,7 +55,7 @@ impl Default for ParamsUniform {
     fn default() -> Self {
         Self {
             dimensions: BUFFER_LEN as u32,
-            radius: 0.75,
+            radius: 0.3,
             noise_seed: 0,
             noise_freq: 0.3,
             noise_amplitude: 1.55,
@@ -65,8 +67,10 @@ impl Default for ParamsUniform {
             warp_amount: 0.0,
             warp_scale: 0.0,
             noise_weight: 0.53,
-            ca_thresh: 0.17,
-            ca_search_radius: 3.8
+            ca_thresh: 0.24,
+            ca_search_radius: 3.8,
+            ca_edge_pow: 1.5,
+            edge_suppress_mix: 1.0
         }
     }
 }

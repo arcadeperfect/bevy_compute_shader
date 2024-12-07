@@ -35,7 +35,7 @@ fn ui_system(
             ui.heading("noiseeee");
             ui.group(|ui| {
                 ui.label("radius");
-                ui.add(egui::Slider::new(&mut params.radius, 0.0..=1.).text("radius"));
+                ui.add(egui::Slider::new(&mut params.radius, 0.0..=0.5).text("radius"));
                 ui.add(egui::Slider::new(&mut params.noise_amplitude, 0.0..=5.).text("amplitude"));
                 ui.add(egui::Slider::new(&mut params.noise_freq, 0.0..=1.).text("frequency"));
                 ui.add(egui::Slider::new(&mut params.noise_offset, 0.0..=20.).text("offset"));
@@ -60,8 +60,10 @@ fn ui_system(
                         .range(0..=100),
                     );
                 });
-                ui.add(egui::Slider::new(&mut params.ca_thresh, 0.0..=0.25).text("thresh"));
+                ui.add(egui::Slider::new(&mut params.ca_thresh, 0.0..=1.).text("thresh"));
                 ui.add(egui::Slider::new(&mut params.ca_search_radius, 0.1..=6.).text("search radius"));
+                ui.add(egui::Slider::new(&mut params.ca_edge_pow, 0.1..=6.).text("edge pow"));
+                ui.add(egui::Slider::new(&mut params.edge_suppress_mix, 0.0..=1.).text("edge mix"));
 
             });
         });
