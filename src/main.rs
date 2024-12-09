@@ -19,10 +19,12 @@ use bevy::{
 use binding_types::{storage_buffer, uniform_buffer};
 use bytemuck::{bytes_of, Pod, Zeroable};
 use cam_controller::CameraController;
+use gradient_editor::update_gradient_texture;
 
 mod cam_controller;
 mod gui;
 mod gradient_editor;
+
 
 const GENERATE_CIRCLE_HANDLE: Handle<Shader> = Handle::weak_from_u128(13378847158248049035);
 const DOMAIN_WARP_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378847158248049035);
@@ -142,6 +144,7 @@ fn main() {
         ))
         .insert_resource(ClearColor(Color::BLACK))
         .add_systems(Startup, setup)
+        .add_systems(Update, update_gradient_texture)
         .run();
 }
 

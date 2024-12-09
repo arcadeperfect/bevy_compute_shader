@@ -29,6 +29,8 @@ DEALINGS IN THE SOFTWARE.
 mod cache;
 mod gradient;
 mod widget;
+mod updater;
 
 pub use gradient::{ColorInterpolator, Gradient, InterpolationMethod};
 pub use widget::gradient_editor;
+pub use updater::update_gradient_texture;
