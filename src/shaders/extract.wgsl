@@ -1,13 +1,43 @@
+#import compute::noise
+#import compute::utils
+
 struct Params {
     dimensions: u32,
+
+    // circle generator
     radius: f32,
     noise_seed: u32,
-    noise_scale: f32,
+    noise_freq: f32,
     noise_amplitude: f32,
+    nois_lacunarity:f32,
     noise_offset: f32,
-    warp_amount: f32,
-    warp_scale: f32, 
+    power_bias: f32,
+    flatness: f32,
+    steepness: f32,
+    mix: f32,
+    noise_warp_amount: f32,
+    noise_warp_scale: f32,
+
+    // domain warp 1
+    domain_warp_1_amount_1: f32,
+    domain_warp_1_scale_1: f32,
+    domain_warp_1_amount_2: f32,
+    domain_warp_1_scale_2: f32,
+    
+    // cellular automata
+    noise_weight: f32,
+    ca_thresh: f32,
+    ca_search_radius: f32,
+    ca_edge_pow: f32,
+    edge_suppress_mix: f32,
+
+    // cave domain warp
+    domain_warp_2_amount_1: f32,
+    domain_warp_2_scale_1: f32,
+    domain_warp_2_amount_2: f32,
+    domain_warp_2_scale_2: f32,
 }
+
 
 const BUFFER_LEN = 1024u;
 struct DataGrid{
@@ -19,7 +49,7 @@ struct DataGrid{
 @group(0) @binding(1) var input_texture: texture_storage_2d<rgba32float, read>;
 @group(0) @binding(2) var output_texture: texture_storage_2d<rgba32float, write>;
 @group(0) @binding(3) var<storage, read_write> input_grid: DataGrid;
-@group(0) @binding(4) var<storage, read_write> output_grid: DataGrid;
+// @group(0) @binding(4) var<storage, read_write> output_grid: DataGrid;
 
 @compute @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
@@ -34,15 +64,29 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     
     let current = textureLoad(input_texture, upos);
 
+    // let dist_to_center = input_grid.floats[x][y][0];
+    // let deformed_radius = input_grid.floats[x][y][2];
+    
+    // let normd_dist = input_grid.floats[x][y][3];
     let dist_to_center = input_grid.floats[x][y][0];
     let deformed_radius = input_grid.floats[x][y][2];
+    let normd_dist = input_grid.floats[x][y][3];
 
     var v = select(0., 1., dist_to_center <= deformed_radius);
     let caves = current.r;
-    v = v - caves;
+    v = clamp(v - caves, 0., 1.);
    
-    textureStore(output_texture, upos, vec4f(v, v, v, 1.0));
 
+    let c1 = vec4f(1.0, 0.0, 0.0, 1.0);
+    let c2 = vec4f(0.0, 1.0, 0.0, 1.0);
+    let c = mix(c1, c2, normd_dist);
+    // v = v * c;
+    var result = vec4f(v) * c;
+    result.a = 1.;
+
+    textureStore(output_texture, upos, result);
+    // textureStore(output_texture, upos, vec4f(caves,caves,caves,1.0));
+    // textureStore(output_texture, upos, vec4f(input_grid.floats[x][y][4]));
 }
 
 // r contains generated terrain

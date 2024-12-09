@@ -1,22 +1,34 @@
-use std::array;
+use std::{array, default};
 
 use bevy::{
     asset::load_internal_asset,
     prelude::*,
     render::{
-        self, extract_resource::{self, ExtractResource, ExtractResourcePlugin}, render_asset::{RenderAssetUsages, RenderAssets}, render_graph::{self, RenderGraph, RenderLabel}, render_resource::{binding_types::texture_storage_2d, *}, renderer::{RenderContext, RenderDevice, RenderQueue}, storage::{GpuShaderStorageBuffer, ShaderStorageBuffer}, texture::GpuImage, Render, RenderApp, RenderSet
+        self,
+        extract_resource::{self, ExtractResource, ExtractResourcePlugin},
+        render_asset::{RenderAssetUsages, RenderAssets},
+        render_graph::{self, RenderGraph, RenderLabel},
+        render_resource::{binding_types::texture_storage_2d, *},
+        renderer::{RenderContext, RenderDevice, RenderQueue},
+        storage::{GpuShaderStorageBuffer, ShaderStorageBuffer},
+        texture::GpuImage,
+        Render, RenderApp, RenderSet,
     },
     utils::HashMap,
 };
 use binding_types::{storage_buffer, uniform_buffer};
 use bytemuck::{bytes_of, Pod, Zeroable};
+use cam_controller::CameraController;
 
+mod cam_controller;
 mod gui;
+mod gradient_editor;
 
 const GENERATE_CIRCLE_HANDLE: Handle<Shader> = Handle::weak_from_u128(13378847158248049035);
 const DOMAIN_WARP_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378847158248049035);
 const PRE_CA_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378547158240049035);
 const CA_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378547158248049035);
+const POST_CA_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378547158248049031);
 const EXTRACT_HANDLE: Handle<Shader> = Handle::weak_from_u128(33378847158248049035);
 const UTIL_NOISE_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(14378847158248049035);
 const UTIL_VECTOR_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(25378847158248049035);
@@ -28,51 +40,97 @@ const BUFFER_LEN: usize = 1024;
 #[repr(C)]
 struct ParamsUniform {
     dimensions: u32,
+
+    // circle generator
     radius: f32,
     noise_seed: u32,
     noise_freq: f32,
     noise_amplitude: f32,
     noise_offset: f32,
+    noise_lacunarity:f32,
     power_bias: f32,
     flatness: f32,
     steepness: f32,
     mix: f32,
-    warp_amount: f32,
-    warp_scale: f32,
+    noise_warp_amount: f32,
+    noise_warp_scale: f32,
+
+    // domain warp 1
+    domain_warp_1_amount_1: f32,
+    domain_warp_1_scale_1: f32,
+    domain_warp_1_amount_2: f32,
+    domain_warp_1_scale_2: f32,
+    
+    // cellular automata
     noise_weight: f32,
     ca_thresh: f32,
     ca_search_radius: f32,
     ca_edge_pow: f32,
     edge_suppress_mix: f32,
+
+    // cave domain warp
+    domain_warp_2_amount_1: f32,
+    domain_warp_2_scale_1: f32,
+    domain_warp_2_amount_2: f32,
+    domain_warp_2_scale_2: f32,
+
+    misc_f: f32,
+    misc_i: i32,
 }
 
 impl Default for ParamsUniform {
     fn default() -> Self {
         Self {
             dimensions: BUFFER_LEN as u32,
+
+            // circle generator
             radius: 0.3,
             noise_seed: 0,
             noise_freq: 0.3,
             noise_amplitude: 1.55,
             noise_offset: 0.0,
+            noise_lacunarity: 1.0,
             power_bias: 1.8,
             flatness: 1.5,
             steepness: 1.3,
             mix: 0.5,
-            warp_amount: 0.0,
-            warp_scale: 0.0,
+            noise_warp_amount: 0.0,
+            noise_warp_scale: 0.0,
+
+            // domain warp 1
+            domain_warp_1_amount_1: 0.0,
+            domain_warp_1_scale_1: 0.0,
+            domain_warp_1_amount_2: 0.0,
+            domain_warp_1_scale_2: 0.0,
+            
+            // cellular automata
             noise_weight: 0.53,
             ca_thresh: 0.24,
             ca_search_radius: 3.8,
             ca_edge_pow: 1.5,
             edge_suppress_mix: 1.0,
+
+            // cave domain warp
+            domain_warp_2_amount_1: 0.0,
+            domain_warp_2_scale_1: 0.0,
+            domain_warp_2_amount_2: 0.0,
+            domain_warp_2_scale_2: 0.0,
+
+            misc_f: 0.0,
+            misc_i: 0,
         }
     }
+}
+
+#[derive(Resource, Default)]
+struct Gradients{
+    gradient: gradient_editor::Gradient,
 }
 
 fn main() {
     App::new()
         .insert_resource(ParamsUniform::default())
+        .insert_resource(Gradients::default())
         .add_plugins((
             DefaultPlugins,
             GpuReadbackPlugin,
@@ -80,6 +138,7 @@ fn main() {
             ExtractResourcePlugin::<ParamsUniform>::default(),
             // ExtractResourcePlugin::<ShaderConfigurator>::default(),
             gui::GuiPlugin,
+            cam_controller::CameraControllerPlugin,
         ))
         .insert_resource(ClearColor(Color::BLACK))
         .add_systems(Startup, setup)
@@ -108,6 +167,7 @@ enum ComputeNodeLabel {
     Compute2,
     Compute3,
     Compute4,
+    Compute5,
     Final,
 }
 
@@ -130,6 +190,10 @@ impl Plugin for GpuReadbackPlugin {
             ShaderConfig {
                 shader_handle: CA_HANDLE,
                 iterations: 16,
+            },
+            ShaderConfig {
+                shader_handle: POST_CA_HANDLE,
+                iterations: 1,
             },
         ];
 
@@ -161,11 +225,17 @@ impl Plugin for GpuReadbackPlugin {
             "shaders/domain_warp.wgsl",
             Shader::from_wgsl
         );
-        load_internal_asset!(app, CA_HANDLE, "shaders/ca.wgsl", Shader::from_wgsl);
         load_internal_asset!(
             app,
             PRE_CA_HANDLE,
             "shaders/pre_ca_noise.wgsl",
+            Shader::from_wgsl
+        );
+        load_internal_asset!(app, CA_HANDLE, "shaders/ca.wgsl", Shader::from_wgsl);
+        load_internal_asset!(
+            app,
+            POST_CA_HANDLE,
+            "shaders/post_ca_warp.wgsl",
             Shader::from_wgsl
         );
         load_internal_asset!(
@@ -227,6 +297,13 @@ impl Plugin for GpuReadbackPlugin {
                 is_final: false,
             },
         );
+        render_graph.add_node(
+            ComputeNodeLabel::Compute5,
+            ComputeNode {
+                pipeline_index: 4,
+                is_final: false,
+            },
+        );
 
         // Add final pass
         render_graph.add_node(
@@ -241,7 +318,8 @@ impl Plugin for GpuReadbackPlugin {
         render_graph.add_node_edge(ComputeNodeLabel::Compute1, ComputeNodeLabel::Compute2);
         render_graph.add_node_edge(ComputeNodeLabel::Compute2, ComputeNodeLabel::Compute3);
         render_graph.add_node_edge(ComputeNodeLabel::Compute3, ComputeNodeLabel::Compute4);
-        render_graph.add_node_edge(ComputeNodeLabel::Compute4, ComputeNodeLabel::Final);
+        render_graph.add_node_edge(ComputeNodeLabel::Compute4, ComputeNodeLabel::Compute5);
+        render_graph.add_node_edge(ComputeNodeLabel::Compute5, ComputeNodeLabel::Final);
     }
 }
 
@@ -250,20 +328,9 @@ struct ImageBufferContainer {
     tex_buffer_a: Handle<Image>,
     tex_buffer_b: Handle<Image>,
     result: Handle<Image>,
-    data_buffer_a:  Handle<ShaderStorageBuffer>,
-    data_buffer_b:  Handle<ShaderStorageBuffer>,
+    data_buffer_a: Handle<ShaderStorageBuffer>,
+    data_buffer_b: Handle<ShaderStorageBuffer>,
 }
-
-
-// #[derive(Copy, Clone, Pod, Zeroable, ShaderType, Default)]
-// #[repr(C)]
-// struct FloatCell {
-//     values: [f32; 8]
-// }
-
-// struct IntCell {
-//     values: [f32; 8]
-// }
 
 #[derive(Copy, Clone, Pod, Zeroable, ShaderType)]
 #[repr(C)]
@@ -277,9 +344,8 @@ fn setup(
     mut commands: Commands,
     mut images: ResMut<Assets<Image>>,
     mut buffers: ResMut<Assets<ShaderStorageBuffer>>,
-    render_device: Res<RenderDevice>,
 ) {
-    commands.spawn((Camera2d::default(),));
+    commands.spawn((Camera2d::default(), CameraController::default()));
 
     let size = Extent3d {
         width: BUFFER_LEN as u32,
@@ -303,8 +369,6 @@ fn setup(
     let texture_buffer_b = create_texture_image();
     let result = create_texture_image();
 
-
-
     let grid1 = DataGrid {
         floats: [[[0.0; 8]; BUFFER_LEN]; BUFFER_LEN],
         ints: [[[0; 8]; BUFFER_LEN]; BUFFER_LEN],
@@ -313,7 +377,7 @@ fn setup(
     let mut buffer1 = ShaderStorageBuffer::from(vec![grid1]);
     buffer1.buffer_description.usage |= BufferUsages::COPY_SRC;
     let buffer1_handle = buffers.add(buffer1);
-    
+
     let grid2 = DataGrid {
         floats: [[[0.0; 8]; BUFFER_LEN]; BUFFER_LEN],
         ints: [[[0; 8]; BUFFER_LEN]; BUFFER_LEN],
@@ -323,7 +387,6 @@ fn setup(
     buffer2.buffer_description.usage |= BufferUsages::COPY_SRC;
 
     let buffer2_handle = buffers.add(buffer2);
-
 
     commands.spawn((
         Sprite {
@@ -339,7 +402,7 @@ fn setup(
         tex_buffer_b: texture_buffer_b,
         result,
         data_buffer_a: buffer1_handle,
-        data_buffer_b: buffer2_handle
+        data_buffer_b: buffer2_handle,
     });
 }
 
@@ -405,8 +468,8 @@ fn prepare_bind_groups(
                 uniform_buffer.as_entire_buffer_binding(),
                 image_b.texture_view.into_binding(),
                 image_a.texture_view.into_binding(),
-                buffer_b.buffer.as_entire_buffer_binding(),
                 buffer_a.buffer.as_entire_buffer_binding(),
+                buffer_b.buffer.as_entire_buffer_binding(),
             )),
         ),
     ];
@@ -429,8 +492,8 @@ fn prepare_bind_groups(
             uniform_buffer.as_entire_buffer_binding(),
             image_b.texture_view.into_binding(),
             result_image.texture_view.into_binding(),
-            buffer_b.buffer.as_entire_buffer_binding(),
             buffer_a.buffer.as_entire_buffer_binding(),
+            buffer_b.buffer.as_entire_buffer_binding(),
         )),
     );
 
@@ -615,4 +678,3 @@ impl render_graph::Node for ComputeNode {
         Ok(())
     }
 }
-
