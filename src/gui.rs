@@ -75,11 +75,15 @@ fn ui_system(
                 ui.add(egui::Slider::new(&mut params.misc_i, 10..=70).text("misc i"));
 
 
-                gradient_editor(ui, &mut gradients.gradient);
+                // gradient_editor(ui, &mut gradients.gradient);
 
                 // let i = egui_colorgradient::InterpolationMethod::Linear;
                 // let g = egui_colorgradient::Gradient::default();
                 // let z = egui_colorgradient::gradient_editor(ui, &mut g);
             });
         });
+
+    egui::TopBottomPanel::top("top_panel").show(contexts.ctx_mut(), |ui| {
+        gradient_editor(ui, &mut gradients.gradient);
+    });
 }

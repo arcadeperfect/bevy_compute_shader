@@ -26,6 +26,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 */
 
+use bevy::color::Color;
 use bevy_egui::egui::emath::Float;
 use bevy_egui::egui::epaint::util::OrderedFloat;
 use bevy_egui::egui::epaint::{Color32, Hsva, Rgba};
@@ -134,6 +135,7 @@ where
 }
 
 /// A color gradient, that will be interpolated between a number of fixed points, a.k.a. _stops_.
+#[derive(Clone)]
 pub struct Gradient {
     pub stops: Vec<(f32, Hsva)>,
     pub interpolation_method: InterpolationMethod,
@@ -196,6 +198,16 @@ impl Gradient {
             .map(|t| interp.sample_at(t).unwrap().into())
             .collect()
     }
+    pub fn linear_eval_bevy(&self, n: usize, opaque: bool) -> Vec<Color> {
+        let interp = match opaque {
+            false => self.interpolator(),
+            true => self.interpolator_opaque(),
+        };
+        (0..n)
+            .map(|idx| (idx as f32) / (n - 1) as f32)
+            .map(|t| Color::from_egui(interp.sample_at(t).unwrap()))
+            .collect()
+    }
 }
 
 impl Default for Gradient {
@@ -204,5 +216,18 @@ impl Default for Gradient {
             stops: vec![(0., Color32::BLACK.into()), (1., Color32::WHITE.into())],
             interpolation_method: InterpolationMethod::Linear,
         }
+    }
+}
+
+trait from_egui {
+    fn from_egui(color: bevy_egui::egui::Rgba) -> Self;
+}
+
+
+
+
+impl from_egui for bevy::color::Color {
+    fn from_egui(color: bevy_egui::egui::Rgba) -> Self {
+        Self::srgba(color.r(), color.g(), color.b(), color.a())
     }
 }
