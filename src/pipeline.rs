@@ -7,7 +7,7 @@ use bevy::{
 };
 use binding_types::{storage_buffer, uniform_buffer};
 
-use crate::{parameters::ParamsUniform, DataGrid, ShaderConfigurator, EXTRACT_HANDLE};
+use crate::{parameters::ParamsUniform, DataGrid, ShaderConfigHolder, EXTRACT_HANDLE};
 
 #[derive(Resource)]
 pub struct ComputePipelines {
@@ -16,9 +16,12 @@ pub struct ComputePipelines {
     pub final_pass: CachedComputePipelineId,
 }
 
+const SHADER_ASSET_PATH: &str = "shaders/generate_circle.wgsl";
+
 impl FromWorld for ComputePipelines {
     fn from_world(world: &mut World) -> Self {
-        let shader_configurator = world.resource::<ShaderConfigurator>();
+        // let shader: Handle<Shader> = world.load_asset(SHADER_ASSET_PATH);
+        let shader_configurator = world.resource::<ShaderConfigHolder>();
         let render_device = world.resource::<RenderDevice>();
         let layout = render_device.create_bind_group_layout(
             None,
@@ -42,11 +45,15 @@ impl FromWorld for ComputePipelines {
         // Create pipeline for each shader with its iteration count
         let mut pipeline_configs = Vec::new();
         for config in shader_configs {
+
+            let shader = world.load_asset(config.shader_path);
+
             let pipeline_id = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
                 label: Some("compute".into()),
                 layout: vec![layout.clone()],
                 push_constant_ranges: Vec::new(),
-                shader: config.shader_handle,
+                // shader: config.shader_handle,
+                shader: shader,
                 shader_defs: Vec::new(),
                 entry_point: "main".into(),
                 zero_initialize_workgroup_memory: false,

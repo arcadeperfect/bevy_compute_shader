@@ -20,10 +20,10 @@ pub struct ParamsUniform {
     pub noise_warp_scale: f32,
 
     // domain warp 1
-    pub domain_warp_1_amount_1: f32,
-    pub domain_warp_1_scale_1: f32,
-    pub domain_warp_1_amount_2: f32,
-    pub domain_warp_1_scale_2: f32,
+    pub domain_warp_1_amount_a: f32,
+    pub domain_warp_1_scale_a: f32,
+    pub domain_warp_1_amount_b: f32,
+    pub domain_warp_1_scale_b: f32,
     
     // cellular automata
     pub noise_weight: f32,
@@ -33,10 +33,10 @@ pub struct ParamsUniform {
     pub edge_suppress_mix: f32,
 
     // cave domain warp
-    pub domain_warp_2_amount_1: f32,
-    pub domain_warp_2_scale_1: f32,
-    pub domain_warp_2_amount_2: f32,
-    pub domain_warp_2_scale_2: f32,
+    pub domain_warp_2_amount_a: f32,
+    pub domain_warp_2_scale_a: f32,
+    pub domain_warp_2_amount_b: f32,
+    pub domain_warp_2_scale_b: f32,
 
     pub misc_f: f32,
     pub misc_i: i32,
@@ -62,10 +62,10 @@ impl Default for ParamsUniform {
             noise_warp_scale: 0.0,
 
             // domain warp 1
-            domain_warp_1_amount_1: 0.0,
-            domain_warp_1_scale_1: 0.0,
-            domain_warp_1_amount_2: 0.0,
-            domain_warp_1_scale_2: 0.0,
+            domain_warp_1_amount_a: 0.0,
+            domain_warp_1_scale_a: 0.0,
+            domain_warp_1_amount_b: 0.0,
+            domain_warp_1_scale_b: 0.0,
             
             // cellular automata
             noise_weight: 0.53,
@@ -75,10 +75,10 @@ impl Default for ParamsUniform {
             edge_suppress_mix: 1.0,
 
             // cave domain warp
-            domain_warp_2_amount_1: 0.0,
-            domain_warp_2_scale_1: 0.0,
-            domain_warp_2_amount_2: 0.0,
-            domain_warp_2_scale_2: 0.0,
+            domain_warp_2_amount_a: 0.0,
+            domain_warp_2_scale_a: 0.0,
+            domain_warp_2_amount_b: 0.0,
+            domain_warp_2_scale_b: 0.0,
 
             misc_f: 0.0,
             misc_i: 0,

@@ -12,7 +12,7 @@ use bevy::{
 };
 use bytemuck::bytes_of;
 
-use crate::{parameters::ParamsUniform, pipeline::ComputePipelines, BindGroupSelection, GpuBufferBindGroups, ImageBufferContainer, ShaderConfigurator};
+use crate::{parameters::ParamsUniform, pipeline::ComputePipelines, BindGroupSelection, GpuBufferBindGroups, ImageBufferContainer, ShaderConfigHolder};
 
 pub fn prepare_bind_groups(
     mut commands: Commands,
@@ -108,7 +108,7 @@ pub fn prepare_bind_groups(
 pub fn prepare_bind_group_selection(
     mut commands: Commands,
     pipelines: Res<ComputePipelines>,
-    shader_configurator: Res<ShaderConfigurator>,
+    shader_configurator: Res<ShaderConfigHolder>,
 ) {
     let mut selectors = HashMap::new();
     let mut total_iterations = 0;

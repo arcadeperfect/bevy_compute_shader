@@ -55,6 +55,6 @@ pub struct BindGroupSelection {
 }
 
 #[derive(Resource, Clone, ExtractResource)]
-pub struct ShaderConfigurator {
+pub struct ShaderConfigHolder {
     pub shader_configs: Vec<ShaderConfig>,
 }

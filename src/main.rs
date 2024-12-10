@@ -47,19 +47,11 @@ fn setup(mut commands: Commands) {
     commands.spawn((Camera2d::default(), CameraController::default()));
 }
 
-fn update_uniform_buffer(
-    bind_groups: Option<Res<GpuBufferBindGroups>>,
-    render_queue: Res<RenderQueue>,
-    params: Res<ParamsUniform>,
-) {
-    if let Some(bind_group) = bind_groups {
-        render_queue.write_buffer(&bind_group.uniform_buffer, 0, bytemuck::bytes_of(&*params));
-    }
-}
 
 #[derive(Debug, Clone)]
 struct ShaderConfig {
-    shader_handle: Handle<Shader>,
+    // shader_handle: Handle<Shader>,
+    shader_path: &'static str,
     iterations: u32,
 }
 

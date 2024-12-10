@@ -7,7 +7,7 @@ use bevy::{
 };
 
 use crate::{
-    constants::*, pipeline::ComputePipelines, BindGroupSelection, GpuBufferBindGroups, ShaderConfigurator
+    constants::*, pipeline::ComputePipelines, BindGroupSelection, GpuBufferBindGroups, ShaderConfigHolder
 };
 
 
@@ -29,7 +29,7 @@ impl render_graph::Node for ComputeNode {
         let bind_groups = world.resource::<GpuBufferBindGroups>();
         let encoder = render_context.command_encoder();
         let selectors = world.resource::<BindGroupSelection>();
-        let shader_configurator = world.resource::<ShaderConfigurator>();
+        let shader_configurator = world.resource::<ShaderConfigHolder>();
 
         if self.is_final {
             if let Some(pipeline) = pipeline_cache.get_compute_pipeline(pipelines.final_pass) {

@@ -1,51 +1,6 @@
 #import compute::noise
 #import compute::utils
-
-
-struct Params {
-    dimensions: u32,
-
-    // circle generator
-    radius: f32,
-    noise_seed: u32,
-    noise_freq: f32,
-    noise_amplitude: f32,
-    nois_lacunarity:f32,
-    noise_offset: f32,
-    power_bias: f32,
-    flatness: f32,
-    steepness: f32,
-    mix: f32,
-    noise_warp_amount: f32,
-    noise_warp_scale: f32,
-
-    // domain warp 1
-    domain_warp_1_amount_1: f32,
-    domain_warp_1_scale_1: f32,
-    domain_warp_1_amount_2: f32,
-    domain_warp_1_scale_2: f32,
-    
-    // cellular automata
-    noise_weight: f32,
-    ca_thresh: f32,
-    ca_search_radius: f32,
-    ca_edge_pow: f32,
-    edge_suppress_mix: f32,
-
-    // cave domain warp
-    domain_warp_2_amount_1: f32,
-    domain_warp_2_scale_1: f32,
-    domain_warp_2_amount_2: f32,
-    domain_warp_2_scale_2: f32,
-}
-
-
-
-const BUFFER_LEN = 1024u;
-struct DataGrid{
-    floats: array<array<array<f32, 8>, BUFFER_LEN>, BUFFER_LEN>,
-    ints: array<array<array<i32, 8>, BUFFER_LEN>, BUFFER_LEN>,
-};
+#import compute::common::{Params, BUFFER_LEN, DataGrid}
 
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var input_texture: texture_storage_2d<rgba32float, read>;
@@ -108,8 +63,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     
     // First domain warp
     let warp1_params = DomainWarpParams(
-        params.domain_warp_1_scale_1,
-        params.domain_warp_1_amount_1,
+        params.domain_warp_1_scale_a,
+        params.domain_warp_1_amount_a,
         0.0,
         0.0
     );
@@ -117,8 +72,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     
     // Second domain warp, applied to the already warped position
     let warp2_params = DomainWarpParams(
-        params.domain_warp_1_scale_2,
-        params.domain_warp_1_amount_2,
+        params.domain_warp_1_scale_b,
+        params.domain_warp_1_amount_b,
         1.234, // Different offset for variety
         5.678  // Different offset for variety
     );
