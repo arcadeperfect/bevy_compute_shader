@@ -14,53 +14,119 @@ use bevy::{
         texture::GpuImage,
         Render, RenderApp, RenderSet,
     },
-    ui::update,
     utils::HashMap,
 };
-use bevy_egui::egui::Color32;
 use binding_types::{storage_buffer, uniform_buffer};
 use bytemuck::{bytes_of, Pod, Zeroable};
 use cam_controller::CameraController;
 use gradient_editor::update_gradient_texture;
-// use gradient_editor::update_gradient_texture;
-use parameters::ParamsUniform;
 
 mod cam_controller;
-mod gradient_editor;
 mod gui;
-mod parameters;
+mod gradient_editor;
+
 
 const GENERATE_CIRCLE_HANDLE: Handle<Shader> = Handle::weak_from_u128(13378847158248049035);
-const DOMAIN_WARP_1_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378847158248049035);
-const CA_PREPARE_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378547158240049035);
-const CA_RUN_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378547158248049035);
-const DOMAIN_WARP_2_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378547158248049031);
-const JUMP_FLOOD_PREPARE_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378547158248049031);
-const EXTRACT_HANDLE: Handle<Shader> = Handle::weak_from_u128(33378347658248449035);
+const DOMAIN_WARP_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378847158248049035);
+const PRE_CA_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378547158240049035);
+const CA_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378547158248049035);
+const POST_CA_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378547158248049031);
+const EXTRACT_HANDLE: Handle<Shader> = Handle::weak_from_u128(33378847158248049035);
 const UTIL_NOISE_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(14378847158248049035);
 const UTIL_VECTOR_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(25378847158248049035);
 
 // The length of the buffer sent to the gpu
 const BUFFER_LEN: usize = 1024;
 
-#[derive(Resource, ExtractResource, Clone)]
-struct Gradients {
-    gradient: gradient_editor::Gradient,
+#[derive(Resource, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, ExtractResource, ShaderType)]
+#[repr(C)]
+struct ParamsUniform {
+    dimensions: u32,
+
+    // circle generator
+    radius: f32,
+    noise_seed: u32,
+    noise_freq: f32,
+    noise_amplitude: f32,
+    noise_offset: f32,
+    noise_lacunarity:f32,
+    power_bias: f32,
+    flatness: f32,
+    steepness: f32,
+    mix: f32,
+    noise_warp_amount: f32,
+    noise_warp_scale: f32,
+
+    // domain warp 1
+    domain_warp_1_amount_1: f32,
+    domain_warp_1_scale_1: f32,
+    domain_warp_1_amount_2: f32,
+    domain_warp_1_scale_2: f32,
+    
+    // cellular automata
+    noise_weight: f32,
+    ca_thresh: f32,
+    ca_search_radius: f32,
+    ca_edge_pow: f32,
+    edge_suppress_mix: f32,
+
+    // cave domain warp
+    domain_warp_2_amount_1: f32,
+    domain_warp_2_scale_1: f32,
+    domain_warp_2_amount_2: f32,
+    domain_warp_2_scale_2: f32,
+
+    misc_f: f32,
+    misc_i: i32,
 }
 
-impl Default for Gradients {
+impl Default for ParamsUniform {
     fn default() -> Self {
         Self {
-            gradient: gradient_editor::Gradient {
-                interpolation_method: gradient_editor::InterpolationMethod::Linear,
-                stops: vec![
-                    (0., Color32::BLUE.into()),
-                    (0.5, Color32::GREEN.into()),
-                    (1., Color32::RED.into()),
-                ],
-            },
+            dimensions: BUFFER_LEN as u32,
+
+            // circle generator
+            radius: 0.3,
+            noise_seed: 0,
+            noise_freq: 0.3,
+            noise_amplitude: 1.55,
+            noise_offset: 0.0,
+            noise_lacunarity: 1.0,
+            power_bias: 1.8,
+            flatness: 1.5,
+            steepness: 1.3,
+            mix: 0.5,
+            noise_warp_amount: 0.0,
+            noise_warp_scale: 0.0,
+
+            // domain warp 1
+            domain_warp_1_amount_1: 0.0,
+            domain_warp_1_scale_1: 0.0,
+            domain_warp_1_amount_2: 0.0,
+            domain_warp_1_scale_2: 0.0,
+            
+            // cellular automata
+            noise_weight: 0.53,
+            ca_thresh: 0.24,
+            ca_search_radius: 3.8,
+            ca_edge_pow: 1.5,
+            edge_suppress_mix: 1.0,
+
+            // cave domain warp
+            domain_warp_2_amount_1: 0.0,
+            domain_warp_2_scale_1: 0.0,
+            domain_warp_2_amount_2: 0.0,
+            domain_warp_2_scale_2: 0.0,
+
+            misc_f: 0.0,
+            misc_i: 0,
         }
     }
+}
+
+#[derive(Resource, Default)]
+struct Gradients{
+    gradient: gradient_editor::Gradient,
 }
 
 fn main() {
@@ -70,7 +136,6 @@ fn main() {
         .add_plugins((
             DefaultPlugins,
             GpuReadbackPlugin,
-            ExtractResourcePlugin::<Gradients>::default(),
             ExtractResourcePlugin::<ImageBufferContainer>::default(),
             ExtractResourcePlugin::<ParamsUniform>::default(),
             // ExtractResourcePlugin::<ShaderConfigurator>::default(),
@@ -79,7 +144,7 @@ fn main() {
         ))
         .insert_resource(ClearColor(Color::BLACK))
         .add_systems(Startup, setup)
-        // .add_systems(Update, update_gradient_texture)
+        .add_systems(Update, update_gradient_texture)
         .run();
 }
 
@@ -88,9 +153,7 @@ fn update_uniform_buffer(
     render_queue: Res<RenderQueue>,
     params: Res<ParamsUniform>,
 ) {
-    // println!("botty");
     if let Some(bind_group) = bind_groups {
-        // println!("batty");
         render_queue.write_buffer(&bind_group.uniform_buffer, 0, bytemuck::bytes_of(&*params));
     }
 }
@@ -120,19 +183,19 @@ impl Plugin for GpuReadbackPlugin {
                 iterations: 1,
             },
             ShaderConfig {
-                shader_handle: DOMAIN_WARP_1_HANDLE,
+                shader_handle: DOMAIN_WARP_HANDLE,
                 iterations: 5,
             },
             ShaderConfig {
-                shader_handle: CA_PREPARE_HANDLE,
+                shader_handle: PRE_CA_HANDLE,
                 iterations: 1,
             },
             ShaderConfig {
-                shader_handle: CA_RUN_HANDLE,
+                shader_handle: CA_HANDLE,
                 iterations: 16,
             },
             ShaderConfig {
-                shader_handle: DOMAIN_WARP_2_HANDLE,
+                shader_handle: POST_CA_HANDLE,
                 iterations: 1,
             },
         ];
@@ -161,27 +224,21 @@ impl Plugin for GpuReadbackPlugin {
         );
         load_internal_asset!(
             app,
-            DOMAIN_WARP_1_HANDLE,
-            "shaders/domain_warp_1.wgsl",
+            DOMAIN_WARP_HANDLE,
+            "shaders/domain_warp.wgsl",
             Shader::from_wgsl
         );
         load_internal_asset!(
             app,
-            CA_PREPARE_HANDLE,
-            "shaders/ca_prepare.wgsl",
+            PRE_CA_HANDLE,
+            "shaders/pre_ca_noise.wgsl",
             Shader::from_wgsl
         );
-        load_internal_asset!(app, CA_RUN_HANDLE, "shaders/ca_run.wgsl", Shader::from_wgsl);
+        load_internal_asset!(app, CA_HANDLE, "shaders/ca.wgsl", Shader::from_wgsl);
         load_internal_asset!(
             app,
-            DOMAIN_WARP_2_HANDLE,
-            "shaders/domain_warp_2.wgsl",
-            Shader::from_wgsl
-        );
-        load_internal_asset!(
-            app,
-            JUMP_FLOOD_PREPARE_HANDLE,
-            "shaders/jump_flood_prepare.wgsl",
+            POST_CA_HANDLE,
+            "shaders/post_ca_warp.wgsl",
             Shader::from_wgsl
         );
         load_internal_asset!(
@@ -202,7 +259,6 @@ impl Plugin for GpuReadbackPlugin {
         render_app.init_resource::<ComputePipelines>().add_systems(
             Render,
             (
-                update_gradient_texture,
                 update_uniform_buffer,
                 prepare_bind_groups
                     .in_set(RenderSet::PrepareBindGroups)
@@ -277,12 +333,12 @@ struct ImageBufferContainer {
     result: Handle<Image>,
     data_buffer_a: Handle<ShaderStorageBuffer>,
     data_buffer_b: Handle<ShaderStorageBuffer>,
-    grad_texture: Handle<Image>,
 }
 
 #[derive(Copy, Clone, Pod, Zeroable, ShaderType)]
 #[repr(C)]
 struct DataGrid {
+    // This creates a 10x20 grid
     floats: [[[f32; 8]; BUFFER_LEN]; BUFFER_LEN],
     ints: [[[i32; 8]; BUFFER_LEN]; BUFFER_LEN],
 }
@@ -335,21 +391,6 @@ fn setup(
 
     let buffer2_handle = buffers.add(buffer2);
 
-    let mut grad_texture = Image::new_fill(
-        Extent3d {
-            width: 256,
-            height: 256,
-            ..default()
-        },
-        TextureDimension::D2,
-        &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        TextureFormat::Rgba32Float,
-        RenderAssetUsages::RENDER_WORLD,
-    );
-    grad_texture.texture_descriptor.usage |=
-        TextureUsages::COPY_SRC | TextureUsages::COPY_DST | TextureUsages::STORAGE_BINDING;
-    let grad_texture_handle = images.add(grad_texture);
-
     commands.spawn((
         Sprite {
             image: result.clone(),
@@ -365,7 +406,6 @@ fn setup(
         result,
         data_buffer_a: buffer1_handle,
         data_buffer_b: buffer2_handle,
-        grad_texture: grad_texture_handle,
     });
 }
 
@@ -409,7 +449,6 @@ fn prepare_bind_groups(
     let image_a = images.get(&buffer_container.tex_buffer_a).unwrap();
     let image_b = images.get(&buffer_container.tex_buffer_b).unwrap();
     let result_image = images.get(&buffer_container.result).unwrap();
-    let gradient_image = images.get(&buffer_container.grad_texture).unwrap();
 
     let bind_groups = vec![
         // A -> B
@@ -422,7 +461,6 @@ fn prepare_bind_groups(
                 image_b.texture_view.into_binding(),
                 buffer_a.buffer.as_entire_buffer_binding(),
                 buffer_b.buffer.as_entire_buffer_binding(),
-                gradient_image.texture_view.into_binding(),
             )),
         ),
         // B -> A
@@ -435,7 +473,6 @@ fn prepare_bind_groups(
                 image_a.texture_view.into_binding(),
                 buffer_a.buffer.as_entire_buffer_binding(),
                 buffer_b.buffer.as_entire_buffer_binding(),
-                gradient_image.texture_view.into_binding(),
             )),
         ),
     ];
@@ -449,7 +486,6 @@ fn prepare_bind_groups(
             result_image.texture_view.into_binding(),
             buffer_a.buffer.as_entire_buffer_binding(),
             buffer_b.buffer.as_entire_buffer_binding(),
-            gradient_image.texture_view.into_binding(),
         )),
     );
     let extract_b = render_device.create_bind_group(
@@ -461,7 +497,6 @@ fn prepare_bind_groups(
             result_image.texture_view.into_binding(),
             buffer_a.buffer.as_entire_buffer_binding(),
             buffer_b.buffer.as_entire_buffer_binding(),
-            gradient_image.texture_view.into_binding(),
         )),
     );
 
@@ -470,7 +505,6 @@ fn prepare_bind_groups(
         final_pass_a: extract_a,
         final_pass_b: extract_b,
         uniform_buffer,
-        // grad_buffer:gradient_image
         // iteration: 0,
     });
 }
@@ -501,7 +535,6 @@ impl FromWorld for ComputePipelines {
                     texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
                     storage_buffer::<DataGrid>(false),
                     storage_buffer::<DataGrid>(false),
-                    texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::ReadOnly),
                 ),
             ),
         );
