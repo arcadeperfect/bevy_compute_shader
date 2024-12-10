@@ -86,8 +86,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     input_grid.floats[upos.x][upos.y][0] = current.r; // dist to center
     input_grid.floats[upos.x][upos.y][1] = current.g; // dist to edge
     input_grid.floats[upos.x][upos.y][2] = current.b; // deformed radius
-    input_grid.floats[upos.x][upos.y][3] = current.a; // normalized dist to edge
-    input_grid.floats[upos.x][upos.y][4] = s1; // normalized dist to edge
+    // input_grid.floats[upos.x][upos.y][3] = current.a; // normalized dist to edge
+    // input_grid.floats[upos.x][upos.y][4] = s1; // normalized dist to edge
     
 }
 

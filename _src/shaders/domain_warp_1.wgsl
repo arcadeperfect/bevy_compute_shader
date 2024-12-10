@@ -1,3 +1,5 @@
+// domain_warp_1
+
 #import compute::noise
 #import compute::utils
 
@@ -50,8 +52,9 @@ struct DataGrid{
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var input_texture: texture_storage_2d<rgba32float, read>;
 @group(0) @binding(2) var output_texture: texture_storage_2d<rgba32float, write>;
-// @group(0) @binding(3) var<storage, read_write> input_grid: DataGrid;
-// @group(0) @binding(4) var<storage, read_write> output_grid: DataGrid;
+@group(0) @binding(3) var<storage, read_write> input_grid: DataGrid;
+@group(0) @binding(4) var<storage, read_write> output_grid: DataGrid;
+@group(0) @binding(5) var grad_texture: texture_storage_2d<rgba32float, read>;
 
 // fn sample_with_offset(pos: vec2<i32>, offset: vec2<f32>) -> vec4<f32> {
 //     let dim = f32(params.dimensions);

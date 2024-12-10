@@ -24,17 +24,45 @@ use cam_controller::CameraController;
 use gradient_editor::update_gradient_texture;
 // use gradient_editor::update_gradient_texture;
 use parameters::ParamsUniform;
-use constants::*;
-use resources::*;
 
 mod cam_controller;
 mod gradient_editor;
 mod gui;
 mod parameters;
-mod constants;
-mod resources;
 
+const GENERATE_CIRCLE_HANDLE: Handle<Shader> = Handle::weak_from_u128(13378847158248049035);
+const DOMAIN_WARP_1_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378847158248049035);
+const CA_PREPARE_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378547158240049035);
+const CA_RUN_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378547158248049035);
+const DOMAIN_WARP_2_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378547158248049031);
+const JUMP_FLOOD_PREPARE_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378347558218049031);
+const JUMP_FLOOD_RUN_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378347558248049032);
+const EXTRACT_HANDLE: Handle<Shader> = Handle::weak_from_u128(33378347658248449035);
+const UTIL_NOISE_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(14378847158248049035);
+const UTIL_VECTOR_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(25378847158248049035);
 
+// The length of the buffer sent to the gpu
+const BUFFER_LEN: usize = 1024;
+
+#[derive(Resource, ExtractResource, Clone)]
+struct Gradients {
+    gradient: gradient_editor::Gradient,
+}
+
+impl Default for Gradients {
+    fn default() -> Self {
+        Self {
+            gradient: gradient_editor::Gradient {
+                interpolation_method: gradient_editor::InterpolationMethod::Linear,
+                stops: vec![
+                    (0., Color32::BLUE.into()),
+                    (0.5, Color32::GREEN.into()),
+                    (1., Color32::RED.into()),
+                ],
+            },
+        }
+    }
+}
 
 fn main() {
     App::new()
@@ -47,7 +75,7 @@ fn main() {
             ExtractResourcePlugin::<ImageBufferContainer>::default(),
             ExtractResourcePlugin::<ParamsUniform>::default(),
             // ExtractResourcePlugin::<ShaderConfigurator>::default(),
-            gui::GuiPlugin,
+            // gui::GuiPlugin,
             cam_controller::CameraControllerPlugin,
         ))
         .insert_resource(ClearColor(Color::BLACK))
@@ -76,11 +104,12 @@ struct ShaderConfig {
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
 enum ComputeNodeLabel {
-    Compute1,
-    Compute2,
-    Compute3,
-    Compute4,
-    Compute5,
+    GenerateCircle,
+    // DomainWarp1,
+    // Compute3,
+    // Compute4,
+    // Compute5,
+    // Compute6,
     Final,
 }
 
@@ -92,22 +121,30 @@ impl Plugin for GpuReadbackPlugin {
                 shader_handle: GENERATE_CIRCLE_HANDLE,
                 iterations: 1,
             },
-            ShaderConfig {
-                shader_handle: DOMAIN_WARP_HANDLE,
-                iterations: 5,
-            },
-            ShaderConfig {
-                shader_handle: PRE_CA_HANDLE,
-                iterations: 1,
-            },
-            ShaderConfig {
-                shader_handle: CA_HANDLE,
-                iterations: 16,
-            },
-            ShaderConfig {
-                shader_handle: POST_CA_HANDLE,
-                iterations: 1,
-            },
+            // ShaderConfig {
+            //     shader_handle: DOMAIN_WARP_1_HANDLE,
+            //     iterations: 5,
+            // },
+            // ShaderConfig {
+            //     shader_handle: CA_PREPARE_HANDLE,
+            //     iterations: 1,
+            // },
+            // ShaderConfig {
+            //     shader_handle: CA_RUN_HANDLE,
+            //     iterations: 16,
+            // },
+            // ShaderConfig {
+            //     shader_handle: DOMAIN_WARP_2_HANDLE,
+            //     iterations: 1,
+            // },
+            // ShaderConfig {
+            //     shader_handle: JUMP_FLOOD_PREPARE_HANDLE,
+            //     iterations: 1,
+            // },
+            // ShaderConfig {
+            //     shader_handle: JUMP_FLOOD_RUN_HANDLE,
+            //     iterations: 1,
+            // },
         ];
 
         app.insert_resource(ShaderConfigurator { shader_configs });
@@ -132,25 +169,37 @@ impl Plugin for GpuReadbackPlugin {
             "shaders/generate_circle.wgsl",
             Shader::from_wgsl
         );
-        load_internal_asset!(
-            app,
-            DOMAIN_WARP_HANDLE,
-            "shaders/domain_warp.wgsl",
-            Shader::from_wgsl
-        );
-        load_internal_asset!(
-            app,
-            PRE_CA_HANDLE,
-            "shaders/pre_ca_noise.wgsl",
-            Shader::from_wgsl
-        );
-        load_internal_asset!(app, CA_HANDLE, "shaders/ca.wgsl", Shader::from_wgsl);
-        load_internal_asset!(
-            app,
-            POST_CA_HANDLE,
-            "shaders/post_ca_warp.wgsl",
-            Shader::from_wgsl
-        );
+        // load_internal_asset!(
+        //     app,
+        //     DOMAIN_WARP_1_HANDLE,
+        //     "shaders/domain_warp_1.wgsl",
+        //     Shader::from_wgsl
+        // );
+        // load_internal_asset!(
+        //     app,
+        //     CA_PREPARE_HANDLE,
+        //     "shaders/ca_prepare.wgsl",
+        //     Shader::from_wgsl
+        // );
+        // load_internal_asset!(app, CA_RUN_HANDLE, "shaders/ca_run.wgsl", Shader::from_wgsl);
+        // load_internal_asset!(
+        //     app,
+        //     DOMAIN_WARP_2_HANDLE,
+        //     "shaders/domain_warp_2.wgsl",
+        //     Shader::from_wgsl
+        // );
+        // load_internal_asset!(
+        //     app,
+        //     JUMP_FLOOD_PREPARE_HANDLE,
+        //     "shaders/jump_flood_prepare.wgsl",
+        //     Shader::from_wgsl
+        // );
+        // load_internal_asset!(
+        //     app,
+        //     JUMP_FLOOD_RUN_HANDLE,
+        //     "shaders/jump_flood_run.wgsl",
+        //     Shader::from_wgsl
+        // );
         load_internal_asset!(
             app,
             EXTRACT_HANDLE,
@@ -184,40 +233,47 @@ impl Plugin for GpuReadbackPlugin {
 
         // Add compute nodes
         render_graph.add_node(
-            ComputeNodeLabel::Compute1,
+            ComputeNodeLabel::GenerateCircle,
             ComputeNode {
                 pipeline_index: 0,
                 is_final: false,
             },
         );
-        render_graph.add_node(
-            ComputeNodeLabel::Compute2,
-            ComputeNode {
-                pipeline_index: 1,
-                is_final: false,
-            },
-        );
-        render_graph.add_node(
-            ComputeNodeLabel::Compute3,
-            ComputeNode {
-                pipeline_index: 2,
-                is_final: false,
-            },
-        );
-        render_graph.add_node(
-            ComputeNodeLabel::Compute4,
-            ComputeNode {
-                pipeline_index: 3,
-                is_final: false,
-            },
-        );
-        render_graph.add_node(
-            ComputeNodeLabel::Compute5,
-            ComputeNode {
-                pipeline_index: 4,
-                is_final: false,
-            },
-        );
+        // render_graph.add_node(
+        //     ComputeNodeLabel::DomainWarp1,
+        //     ComputeNode {
+        //         pipeline_index: 1,
+        //         is_final: false,
+        //     },
+        // );
+        // render_graph.add_node(
+        //     ComputeNodeLabel::Compute3,
+        //     ComputeNode {
+        //         pipeline_index: 2,
+        //         is_final: false,
+        //     },
+        // );
+        // render_graph.add_node(
+        //     ComputeNodeLabel::Compute4,
+        //     ComputeNode {
+        //         pipeline_index: 3,
+        //         is_final: false,
+        //     },
+        // );
+        // render_graph.add_node(
+        //     ComputeNodeLabel::Compute5,
+        //     ComputeNode {
+        //         pipeline_index: 4,
+        //         is_final: false,
+        //     },
+        // );
+        // render_graph.add_node(
+        //     ComputeNodeLabel::Compute6,
+        //     ComputeNode {
+        //         pipeline_index: 5,
+        //         is_final: false,
+        //     },
+        // );
 
         // Add final pass
         render_graph.add_node(
@@ -229,22 +285,32 @@ impl Plugin for GpuReadbackPlugin {
         );
 
         // Add edges between nodes
-        render_graph.add_node_edge(ComputeNodeLabel::Compute1, ComputeNodeLabel::Compute2);
-        render_graph.add_node_edge(ComputeNodeLabel::Compute2, ComputeNodeLabel::Compute3);
-        render_graph.add_node_edge(ComputeNodeLabel::Compute3, ComputeNodeLabel::Compute4);
-        render_graph.add_node_edge(ComputeNodeLabel::Compute4, ComputeNodeLabel::Compute5);
-        render_graph.add_node_edge(ComputeNodeLabel::Compute5, ComputeNodeLabel::Final);
+        // render_graph.add_node_edge(ComputeNodeLabel::Compute1, ComputeNodeLabel::Compute2);
+        // render_graph.add_node_edge(ComputeNodeLabel::Compute2, ComputeNodeLabel::Compute3);
+        // render_graph.add_node_edge(ComputeNodeLabel::Compute3, ComputeNodeLabel::Compute4);
+        // render_graph.add_node_edge(ComputeNodeLabel::Compute4, ComputeNodeLabel::Compute5);
+        // render_graph.add_node_edge(ComputeNodeLabel::Compute5, ComputeNodeLabel::Compute6);
+        // render_graph.add_node_edge(ComputeNodeLabel::Compute6, ComputeNodeLabel::Final);
+        
+        render_graph.add_node_edge(ComputeNodeLabel::GenerateCircle, ComputeNodeLabel::Final);
     }
 }
 
-
+#[derive(Resource, ExtractResource, Clone)]
+struct ImageBufferContainer {
+    tex_buffer_a: Handle<Image>,
+    tex_buffer_b: Handle<Image>,
+    result: Handle<Image>,
+    data_buffer_a: Handle<ShaderStorageBuffer>,
+    data_buffer_b: Handle<ShaderStorageBuffer>,
+    grad_texture: Handle<Image>,
+}
 
 #[derive(Copy, Clone, Pod, Zeroable, ShaderType)]
 #[repr(C)]
 struct DataGrid {
-    // This creates a 10x20 grid
-    floats: [[[f32; GRID_SIZE]; BUFFER_LEN]; BUFFER_LEN],
-    ints: [[[i32; GRID_SIZE]; BUFFER_LEN]; BUFFER_LEN],
+    floats: [[[f32; 8]; BUFFER_LEN]; BUFFER_LEN],
+    ints: [[[i32; 8]; BUFFER_LEN]; BUFFER_LEN],
 }
 
 fn setup(
@@ -254,25 +320,6 @@ fn setup(
 ) {
     commands.spawn((Camera2d::default(), CameraController::default()));
 
-    let buffer_size = std::mem::size_of::<f32>() * GRID_SIZE * BUFFER_LEN * BUFFER_LEN
-        + std::mem::size_of::<i32>() * GRID_SIZE * BUFFER_LEN * BUFFER_LEN;
-
-    let mut buffer1 = ShaderStorageBuffer::new(
-        &vec![0u8; buffer_size], 
-        RenderAssetUsages::RENDER_WORLD,
-    );
-    buffer1.buffer_description.usage |= BufferUsages::COPY_SRC;
-
-    let mut buffer2 = ShaderStorageBuffer::new(
-        &vec![0u8; buffer_size], 
-        RenderAssetUsages::RENDER_WORLD,
-    );
-    buffer2.buffer_description.usage |= BufferUsages::COPY_SRC;
-    
-    let buffer1_handle = buffers.add(buffer1);
-    let buffer2_handle = buffers.add(buffer2);
-    
-    
     let size = Extent3d {
         width: BUFFER_LEN as u32,
         height: BUFFER_LEN as u32,
@@ -296,9 +343,23 @@ fn setup(
     let result = create_texture_image();
 
     let grid1 = DataGrid {
-        floats: [[[0.0; GRID_SIZE]; BUFFER_LEN]; BUFFER_LEN],
-        ints: [[[0; GRID_SIZE]; BUFFER_LEN]; BUFFER_LEN],
+        floats: [[[0.0; 8]; BUFFER_LEN]; BUFFER_LEN],
+        ints: [[[0; 8]; BUFFER_LEN]; BUFFER_LEN],
     };
+
+    let mut buffer1 = ShaderStorageBuffer::from(vec![grid1]);
+    buffer1.buffer_description.usage |= BufferUsages::COPY_SRC;
+    let buffer1_handle = buffers.add(buffer1);
+
+    let grid2 = DataGrid {
+        floats: [[[0.0; 8]; BUFFER_LEN]; BUFFER_LEN],
+        ints: [[[0; 8]; BUFFER_LEN]; BUFFER_LEN],
+    };
+
+    let mut buffer2 = ShaderStorageBuffer::from(vec![grid2]);
+    buffer2.buffer_description.usage |= BufferUsages::COPY_SRC;
+
+    let buffer2_handle = buffers.add(buffer2);
 
     let mut grad_texture = Image::new_fill(
         Extent3d {
@@ -334,7 +395,20 @@ fn setup(
     });
 }
 
+#[derive(Resource)]
+struct GpuBufferBindGroups {
+    bind_groups: Vec<BindGroup>,
+    final_pass_a: BindGroup,
+    final_pass_b: BindGroup,
+    uniform_buffer: Buffer,
+}
 
+#[derive(Resource)]
+struct BindGroupSelection {
+    // node_bind_groups: Vec<Selector>, // Index of bind group to use for each node
+    selectors: HashMap<u32, Vec<u32>>,
+    final_pass: u32,
+}
 
 fn prepare_bind_groups(
     mut commands: Commands,
@@ -427,7 +501,10 @@ fn prepare_bind_groups(
     });
 }
 
-
+#[derive(Resource, Clone, ExtractResource)]
+struct ShaderConfigurator {
+    shader_configs: Vec<ShaderConfig>,
+}
 
 #[derive(Resource)]
 struct ComputePipelines {
@@ -597,12 +674,3 @@ impl render_graph::Node for ComputeNode {
         Ok(())
     }
 }
-
-
-// #[derive(Resource)]
-// pub struct GpuBufferBindGroups {
-//     pub bind_groups: Vec<BindGroup>,
-//     pub final_pass_a: BindGroup,
-//     pub final_pass_b: BindGroup,
-//     pub uniform_buffer: Buffer,
-// }

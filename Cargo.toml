@@ -32,3 +32,6 @@ opt-level = 3
 # opt-level = 'z'
 # lto = true
 # codegen-units = 1
+
+[target.'cfg(debug_assertions)']
+rustflags = ["-C", "link-args=-Wl,-stack_size,10000000"]

@@ -1,0 +1,2 @@
+# [target.'cfg(debug_assertions)']
+# rustflags = ["-C", "link-args=-Wl,-stack_size,10000000"]

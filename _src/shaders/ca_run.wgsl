@@ -1,3 +1,5 @@
+// ca_run
+
 #import compute::noise
 #import compute::utils
 
@@ -50,8 +52,9 @@ struct DataGrid{
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var input_texture: texture_storage_2d<rgba32float, read>;
 @group(0) @binding(2) var output_texture: texture_storage_2d<rgba32float, write>;
-// @group(0) @binding(3) var<storage, read_write> input_grid: DataGrid;
-// @group(0) @binding(4) var<storage, read_write> output_grid: DataGrid;
+@group(0) @binding(3) var<storage, read_write> input_grid: DataGrid;
+@group(0) @binding(4) var<storage, read_write> output_grid: DataGrid;
+@group(0) @binding(5) var grad_texture: texture_storage_2d<rgba32float, read>;
 
 fn get_weighted_neighbor_count(x: i32, y: i32, radius: f32) -> f32 {
     var found = 0.0;
