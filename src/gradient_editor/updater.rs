@@ -9,7 +9,7 @@ pub fn update_gradient_texture(
     bind_groups: Option<Res<GpuBufferBindGroups>>,
     render_queue: Res<RenderQueue>,
 ) {
-    println!("botty");
+    
     let g = &gradients.gradient;
     let new_grad = g.linear_eval(256, true);
 

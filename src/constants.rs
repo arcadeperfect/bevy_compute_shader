@@ -1,5 +1,7 @@
 use bevy::prelude::*;
 
+
+pub const COMMON_HANDLE: Handle<Shader> = Handle::weak_from_u128(13278847158748079035);
 pub const GENERATE_CIRCLE_HANDLE: Handle<Shader> = Handle::weak_from_u128(13378847158248049035);
 pub const DOMAIN_WARP_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378847158248049035);
 pub const PRE_CA_HANDLE: Handle<Shader> = Handle::weak_from_u128(23378547158240049035);
