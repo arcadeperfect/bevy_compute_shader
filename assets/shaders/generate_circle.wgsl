@@ -2,12 +2,21 @@
 #import compute::utils
 #import compute::common::{Params, BUFFER_LEN, DataGrid}
 
-
 @group(0) @binding(0) var<uniform> params: Params;
-@group(0) @binding(1) var input_texture: texture_storage_2d<rgba32float, read>;
-@group(0) @binding(2) var output_texture: texture_storage_2d<rgba32float, write>;
-@group(0) @binding(3) var<storage, read_write> input_grid: DataGrid;
-// @group(0) @binding(4) var<storage, read_write> output_grid: DataGrid;
+@group(0) @binding(1) var itex_1: texture_storage_2d<rgba32float, read>;
+@group(0) @binding(2) var otex_1: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(3) var itex_2: texture_storage_2d<rgba32float, read>;
+@group(0) @binding(4) var otex_2: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(5) var itex_3: texture_storage_2d<rgba32float, read>;
+@group(0) @binding(6) var otex_3: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(7) var<storage, read_write> grid_a: DataGrid;
+@group(0) @binding(8) var<storage, read_write> grid_b: DataGrid;
+@group(0) @binding(9) var grad_tex: texture_storage_2d<rgba32float, read>;
+/*
+Generate a circle with noise deformed edges, and calculate distance fields
+
+This is the basis of the planet
+*/
 
 // Power bias to make peaks more pronounced
 fn power_bias(n: f32, power: f32) -> f32{
@@ -55,7 +64,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let upos = vec2<i32>(i32(x), i32(y)); 
     
-    let current = textureLoad(input_texture, upos);
+    let current = textureLoad(itex_1, upos);
     // textureStore(output_texture, upos, current);
     
     
@@ -86,23 +95,22 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let deformed_radius = params.radius + result;
     let dist_to_center = distance(normd_pos, center);
-
-
-    let v = select(0, 1, dist_to_center <= deformed_radius);
-
+    
     normd_pos = normd_pos - center;                 // transform so that 0,0 is the center
     let mag = length(normd_pos);                    // the distance from this pixel to the center
     normd_pos = vec2f(mag, 0.0);                    // create a new vector of the same length, but on the x axis
     let edge = vec2f(deformed_radius, 0.0);         // create a new vector on the same axis, at the distance to the edge
-  
     var dist_to_edge = edge.x - normd_pos.x;
-  
-    // dist_to_edge = dist_to_edge * params.ca_edge_pow;
-    textureStore(output_texture, upos, vec4<f32>(
+        
+    // Only store the distance fields and deformed radius because the edge will be found bt comparing distance
+    // to deformed radius after domain warping
+    // this saves the number of things we have to warp
+    
+    textureStore(otex_2, upos, vec4<f32>(
         dist_to_center, 
         dist_to_edge, 
         deformed_radius, 
         dist_to_edge / deformed_radius
         ));   
-    input_grid.ints[upos.x][upos.y][0] = v;
+    
 } 

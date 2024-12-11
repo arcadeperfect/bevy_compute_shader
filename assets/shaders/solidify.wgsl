@@ -14,33 +14,36 @@
 @group(0) @binding(9) var grad_tex: texture_storage_2d<rgba32float, read>;
 
 /*
-Generate the initial noise which is the starting point for the cellular automata,
-and arrange the data in to the primary texture buffer
+Determine the edge of the planet by comparing the warped radius against the distance field
+Subtract the gaves
 */
+
 
 @compute @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let x = global_id.x;
     let y = global_id.y;
     
-    // let pos = vec2f(f32(x), f32(y));
-
     // Early return if we're outside the texture dimensions
     if (x >= params.dimensions || y >= params.dimensions) {
         return;
     }
 
-    let upos = vec2<i32>(i32(x), i32(y));
+    let upos = vec2<i32>(i32(x), i32(y));    
+    let dim = f32(params.dimensions);
+
+    let current_1 = textureLoad(itex_1, upos);
+    let current_2 = textureLoad(itex_2, upos);
     
-    // load the normalized distance to edge
-    let normalized_distance_to_edge = textureLoad(itex_2, upos).a;
+    let caves = current_1.r;
+    let normalized_distance_to_edge = current_2.a;
+    let deformed_radius = current_2.b;
     
-    // generate weighted noise for the initial state
-    let nze = noise::rand11(f32(x * (y*y)) + params.misc_f * 100);
-    let weighted_noise = select(0.,1.,nze <= params.noise_weight);
-    let weighted_noise_as_float = f32(weighted_noise);
+    var rock = select(1.0, 0.0, normalized_distance_to_edge < deformed_radius);
+    rock = rock - caves;
+    rock = clamp(rock, 0., 1.);
     
-    // store the noise and the normalized distance to edge in otex 1 for cellular automata
-    textureStore(otex_1, upos, vec4f(weighted_noise_as_float,normalized_distance_to_edge, 0.0, 1.0));
+    textureStore(otex_1, upos, vec4f(rock, 0., 0., 1.));
     textureStore(otex_2,upos, textureLoad(itex_2,upos)); // todo test using the storage buffer to avoid constantly swapping textures
+
 }

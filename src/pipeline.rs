@@ -11,7 +11,8 @@ use crate::{parameters::ParamsUniform, DataGrid, ShaderConfigHolder, EXTRACT_HAN
 
 #[derive(Resource)]
 pub struct ComputePipelines {
-    pub layout: BindGroupLayout,
+    pub compute_layout: BindGroupLayout,
+    pub extract_layout: BindGroupLayout,
     pub pipeline_configs: Vec<CachedComputePipelineId>,
     pub final_pass: CachedComputePipelineId,
 }
@@ -21,12 +22,32 @@ impl FromWorld for ComputePipelines {
         // let shader: Handle<Shader> = world.load_asset(SHADER_ASSET_PATH);
         let shader_configurator = world.resource::<ShaderConfigHolder>();
         let render_device = world.resource::<RenderDevice>();
-        let layout = render_device.create_bind_group_layout(
+        let compute_layout = render_device.create_bind_group_layout(
             None,
             &BindGroupLayoutEntries::sequential(
                 ShaderStages::COMPUTE,
                 (
                     uniform_buffer::<ParamsUniform>(false),
+                    texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::ReadOnly),
+                    texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
+                    texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::ReadOnly),
+                    texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
+                    texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::ReadOnly),
+                    texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
+                    storage_buffer::<DataGrid>(false),
+                    storage_buffer::<DataGrid>(false),
+                    texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::ReadOnly),
+                ),
+            ),
+        );
+        let extract_layout = render_device.create_bind_group_layout(
+            None,
+            &BindGroupLayoutEntries::sequential(
+                ShaderStages::COMPUTE,
+                (
+                    uniform_buffer::<ParamsUniform>(false),
+                    texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::ReadOnly),
+                    texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::ReadOnly),
                     texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::ReadOnly),
                     texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
                     storage_buffer::<DataGrid>(false),
@@ -48,7 +69,7 @@ impl FromWorld for ComputePipelines {
 
             let pipeline_id = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
                 label: Some("compute".into()),
-                layout: vec![layout.clone()],
+                layout: vec![compute_layout.clone()],
                 push_constant_ranges: Vec::new(),
                 // shader: config.shader_handle,
                 shader: shader,
@@ -62,7 +83,7 @@ impl FromWorld for ComputePipelines {
 
         let final_pass = pipeline_cache.queue_compute_pipeline(ComputePipelineDescriptor {
             label: Some("Final pass".into()),
-            layout: vec![layout.clone()],
+            layout: vec![extract_layout.clone()],
             push_constant_ranges: Vec::new(),
             shader: EXTRACT_HANDLE,
             shader_defs: Vec::new(),
@@ -71,7 +92,8 @@ impl FromWorld for ComputePipelines {
         });
 
         ComputePipelines {
-            layout,
+            compute_layout,
+            extract_layout,
             pipeline_configs,
             final_pass,
         }

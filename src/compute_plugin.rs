@@ -52,11 +52,11 @@ impl Plugin for ComputeShaderPlugin {
                 iterations: 16,
             },
             ShaderConfig {
-                shader_path: "shaders/ca_post.wgsl",
+                shader_path: "shaders/domain_warp_2.wgsl",
                 iterations: 1,
             },
             ShaderConfig {
-                shader_path: "shaders/domain_warp_2.wgsl",
+                shader_path: "shaders/solidify.wgsl",
                 iterations: 5,
             },
             ShaderConfig {

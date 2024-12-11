@@ -49,11 +49,15 @@ pub fn prepare_bind_groups(
         // A -> B
         render_device.create_bind_group(
             None,
-            &pipeline.layout,
+            &pipeline.compute_layout,
             &BindGroupEntries::sequential((
                 uniform_buffer.as_entire_buffer_binding(),
                 image_a1.texture_view.into_binding(),
                 image_b1.texture_view.into_binding(),
+                image_a2.texture_view.into_binding(),
+                image_b2.texture_view.into_binding(),
+                image_a3.texture_view.into_binding(),
+                image_b3.texture_view.into_binding(),
                 buffer_a.buffer.as_entire_buffer_binding(),
                 buffer_b.buffer.as_entire_buffer_binding(),
                 gradient_image.texture_view.into_binding(),
@@ -62,11 +66,15 @@ pub fn prepare_bind_groups(
         // B -> A
         render_device.create_bind_group(
             None,
-            &pipeline.layout,
+            &pipeline.compute_layout,
             &BindGroupEntries::sequential((
                 uniform_buffer.as_entire_buffer_binding(),
                 image_b1.texture_view.into_binding(),
                 image_a1.texture_view.into_binding(),
+                image_b2.texture_view.into_binding(),
+                image_a2.texture_view.into_binding(),
+                image_b3.texture_view.into_binding(),
+                image_a3.texture_view.into_binding(),
                 buffer_a.buffer.as_entire_buffer_binding(),
                 buffer_b.buffer.as_entire_buffer_binding(),
                 gradient_image.texture_view.into_binding(),
@@ -76,10 +84,12 @@ pub fn prepare_bind_groups(
 
     let extract_a = render_device.create_bind_group(
         None,
-        &pipeline.layout,
+        &pipeline.extract_layout,
         &BindGroupEntries::sequential((
             uniform_buffer.as_entire_buffer_binding(),
             image_a1.texture_view.into_binding(),
+            image_a2.texture_view.into_binding(),
+            image_a3.texture_view.into_binding(),
             result_image.texture_view.into_binding(),
             buffer_a.buffer.as_entire_buffer_binding(),
             buffer_b.buffer.as_entire_buffer_binding(),
@@ -88,10 +98,12 @@ pub fn prepare_bind_groups(
     );
     let extract_b = render_device.create_bind_group(
         None,
-        &pipeline.layout,
+        &pipeline.extract_layout,
         &BindGroupEntries::sequential((
             uniform_buffer.as_entire_buffer_binding(),
             image_b1.texture_view.into_binding(),
+            image_b2.texture_view.into_binding(),
+            image_b3.texture_view.into_binding(),
             result_image.texture_view.into_binding(),
             buffer_a.buffer.as_entire_buffer_binding(),
             buffer_b.buffer.as_entire_buffer_binding(),

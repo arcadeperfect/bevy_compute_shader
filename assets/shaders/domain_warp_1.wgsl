@@ -3,19 +3,20 @@
 #import compute::common::{Params, BUFFER_LEN, DataGrid}
 
 @group(0) @binding(0) var<uniform> params: Params;
-@group(0) @binding(1) var input_texture: texture_storage_2d<rgba32float, read>;
-@group(0) @binding(2) var output_texture: texture_storage_2d<rgba32float, write>;
-// @group(0) @binding(3) var<storage, read_write> input_grid: DataGrid;
-// @group(0) @binding(4) var<storage, read_write> output_grid: DataGrid;
+@group(0) @binding(1) var itex_1: texture_storage_2d<rgba32float, read>;
+@group(0) @binding(2) var otex_1: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(3) var itex_2: texture_storage_2d<rgba32float, read>;
+@group(0) @binding(4) var otex_2: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(5) var itex_3: texture_storage_2d<rgba32float, read>;
+@group(0) @binding(6) var otex_3: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(7) var<storage, read_write> grid_a: DataGrid;
+@group(0) @binding(8) var<storage, read_write> grid_b: DataGrid;
+@group(0) @binding(9) var grad_tex: texture_storage_2d<rgba32float, read>;
 
-// fn sample_with_offset(pos: vec2<i32>, offset: vec2<f32>) -> vec4<f32> {
-//     let dim = f32(params.dimensions);
-//     let new_pos = vec2<i32>(
-//         i32(clamp(f32(pos.x) + offset.x * dim, 0.0, dim - 1.0)),
-//         i32(clamp(f32(pos.y) + offset.y * dim, 0.0, dim - 1.0))
-//     );
-//     return textureLoad(input_texture, new_pos);
-// }
+/*
+Perform domain warping on the output of the previous step, including to the distance fields (?)
+Warping is applied to itex_2 because that's where the distance fields are stored
+*/
 
 
 struct DomainWarpParams {
@@ -42,7 +43,7 @@ fn sample_with_offset(pos: vec2<i32>, offset: vec2<f32>) -> vec4<f32> {
         i32(clamp(f32(pos.x) + offset.x * dim, 0.0, dim - 1.0)),
         i32(clamp(f32(pos.y) + offset.y * dim, 0.0, dim - 1.0))
     );
-    return textureLoad(input_texture, new_pos);
+    return textureLoad(itex_2, new_pos);
 }
 
 @compute @workgroup_size(16, 16)
@@ -85,46 +86,5 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Sample the texture with the combined warped coordinates
     let warped_value = sample_with_offset(upos, final_offset);
     
-    textureStore(output_texture, upos, warped_value);
+    textureStore(otex_2, upos, warped_value);
 }
-
-
-
-// @compute @workgroup_size(16, 16)
-// fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-//     let x = global_id.x;
-//     let y = global_id.y;
-    
-//     // Early return if we're outside the texture dimensions
-//     if (x >= params.dimensions || y >= params.dimensions) {
-//         return;
-//     }
-
-//     let upos = vec2<i32>(i32(x), i32(y));
-
-    
-//     let dim = f32(params.dimensions);
-    
-//     // Convert position to 0-1 range for noise generation
-//     let pos = vec2f(f32(x) / dim, f32(y) / dim);
-    
-//     // Generate two noise values for x and y offsets
-//     let noise_pos = pos * params.domain_warp_1_scale_1;
-//     let noise_x = noise::fbm(noise_pos + vec2<f32>(0.0, 0.0));
-//     let noise_y = noise::fbm(noise_pos + vec2<f32>(3.33, 2.77));
-    
-//     // Create offset vector
-//     let offset = vec2f(
-//         noise_x * params.domain_warp_1_amount_1,
-//         noise_y * params.domain_warp_1_amount_1
-//     );
-    
-//     // Sample the texture with the warped coordinates
-//     let warped_value = sample_with_offset(upos, offset);
-    
-//     // You can blend between the original and warped version if desired
-//     // let current = textureLoad(input_texture, upos);
-//     // textureStore(output_texture, upos, current);
-    
-//     textureStore(output_texture, upos, warped_value);
-// }

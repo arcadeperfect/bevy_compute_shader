@@ -33,7 +33,7 @@ fn ui_system(
             ui.heading("noiseeee");
             ui.group(|ui| {
                 ui.label("radius");
-                ui.add(egui::Slider::new(&mut params.radius, 0.0..=0.5).text("radius"));
+                ui.add(egui::Slider::new(&mut params.radius, 0.0..=1.).text("radius"));
                 ui.add(egui::Slider::new(&mut params.noise_amplitude, 0.0..=5.).text("amplitude"));
                 ui.add(egui::Slider::new(&mut params.noise_freq, 0.0..=1.).text("frequency"));
                 ui.add(egui::Slider::new(&mut params.noise_offset, 0.0..=20.).text("offset"));
