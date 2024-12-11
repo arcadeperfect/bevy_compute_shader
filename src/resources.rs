@@ -7,7 +7,7 @@ use bevy::{
 };
 
 use bevy_egui::egui::Color32;
-use crate::{gradient_editor, ShaderConfig};
+use crate::{data_structures::ShaderConfig, gradient_editor};
 
 #[derive(Resource, ExtractResource, Clone)]
 pub struct Gradients {
@@ -38,8 +38,10 @@ pub struct ImageBufferContainer {
     pub tex_buffer_a3: Handle<Image>,
     pub tex_buffer_b3: Handle<Image>,
     pub result: Handle<Image>,
-    pub data_buffer_a: Handle<ShaderStorageBuffer>,
-    pub data_buffer_b: Handle<ShaderStorageBuffer>,
+    pub grid_buffer_a: Handle<ShaderStorageBuffer>,
+    pub grid_buffer_b: Handle<ShaderStorageBuffer>,
+    pub strip_buffer_a: Handle<ShaderStorageBuffer>,
+    pub strip_buffer_b: Handle<ShaderStorageBuffer>,
     pub grad_texture: Handle<Image>,
 }
 

@@ -106,7 +106,7 @@ fn ui_system(
                 ui.add(egui::Slider::new(&mut params.misc_f, 10.0..=70.).text("misc f"));
                 ui.add(egui::Slider::new(&mut params.misc_i, 1..=2000).text("misc i"));
 
-                gradient_editor(ui, &mut gradients.gradient);
+                // gradient_editor(ui, &mut gradients.gradient);
 
                 // let i = egui_colorgradient::InterpolationMethod::Linear;
                 // let g = egui_colorgradient::Gradient::default();

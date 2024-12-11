@@ -5,9 +5,7 @@ use bevy::{
         extract_resource::ExtractResourcePlugin,
         render_asset::RenderAssetUsages,
         render_graph::{RenderGraph, RenderLabel},
-        render_resource::{
-            BufferUsages, Extent3d, TextureDimension, TextureFormat, TextureUsages,
-        },
+        render_resource::{BufferUsages, Extent3d, TextureDimension, TextureFormat, TextureUsages},
         renderer::RenderQueue,
         storage::ShaderStorageBuffer,
         Render, RenderApp, RenderSet,
@@ -18,10 +16,11 @@ use crate::{
     bind_groups::{prepare_bind_group_selection, prepare_bind_groups},
     compute_node::ComputeNode,
     constants::*,
+    data_structures::ShaderConfig,
     gradient_editor::update_gradient_texture,
     parameters::ParamsUniform,
-    pipeline::ComputePipelines, GpuBufferBindGroups, ImageBufferContainer, ShaderConfig,
-    ShaderConfigHolder,
+    pipeline::ComputePipelines,
+    GpuBufferBindGroups, ImageBufferContainer, ShaderConfigHolder,
 };
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
@@ -39,40 +38,40 @@ impl Plugin for ComputeShaderPlugin {
                 shader_path: "shaders/generate_circle.wgsl",
                 iterations: 1,
             },
-            ShaderConfig {
-                shader_path: "shaders/domain_warp_1.wgsl",
-                iterations: 5,
-            },
-            ShaderConfig {
-                shader_path: "shaders/ca_prepare.wgsl",
-                iterations: 1,
-            },
-            ShaderConfig {
-                shader_path: "shaders/ca_run.wgsl",
-                iterations: 16,
-            },
-            ShaderConfig {
-                shader_path: "shaders/domain_warp_2.wgsl",
-                iterations: 1,
-            },
+            // ShaderConfig {
+            //     shader_path: "shaders/domain_warp_1.wgsl",
+            //     iterations: 5,
+            // },
+            // ShaderConfig {
+            //     shader_path: "shaders/ca_prepare.wgsl",
+            //     iterations: 1,
+            // },
+            // ShaderConfig {
+            //     shader_path: "shaders/ca_run.wgsl",
+            //     iterations: 16,
+            // },
+            // ShaderConfig {
+            //     shader_path: "shaders/domain_warp_2.wgsl",
+            //     iterations: 1,
+            // },
             ShaderConfig {
                 shader_path: "shaders/solidify.wgsl",
                 iterations: 5,
             },
-            ShaderConfig {
-                shader_path: "shaders/jump_flood_prepare.wgsl",
-                iterations: 1,
-            },
-            ShaderConfig {
-                shader_path: "shaders/jump_flood_run.wgsl",
-                iterations: 30,
-            },
+            // ShaderConfig {
+            //     shader_path: "shaders/jump_flood_prepare.wgsl",
+            //     iterations: 1,
+            // },
+            // ShaderConfig {
+            //     shader_path: "shaders/jump_flood_run.wgsl",
+            //     iterations: 30,
+            // },
         ];
 
         app.insert_resource(ShaderConfigHolder { shader_configs });
         app.add_plugins(ExtractResourcePlugin::<ShaderConfigHolder>::default());
 
-        load_shaders(app);
+        load_common_shaders(app);
 
         app.add_systems(Startup, setup);
     }
@@ -102,12 +101,12 @@ impl Plugin for ComputeShaderPlugin {
 
         // Generate nodes dynamically
         let mut node_labels: Vec<ComputeNodeLabel> = Vec::new();
-    
+
         // Create compute nodes
         for (index, _) in shader_configs.shader_configs.iter().enumerate() {
             let label = ComputeNodeLabel::Compute(index);
             node_labels.push(label.clone());
-            
+
             render_graph.add_node(
                 label,
                 ComputeNode {
@@ -116,7 +115,7 @@ impl Plugin for ComputeShaderPlugin {
                 },
             );
         }
-    
+
         // Add final pass node
         let final_label = ComputeNodeLabel::Final;
         node_labels.push(final_label.clone());
@@ -127,13 +126,11 @@ impl Plugin for ComputeShaderPlugin {
                 is_final: true,
             },
         );
-    
+
         // Add edges between nodes
         for i in 0..node_labels.len() - 1 {
             render_graph.add_node_edge(node_labels[i].clone(), node_labels[i + 1].clone());
         }
-        
-        
     }
 }
 
@@ -142,21 +139,48 @@ fn setup(
     mut images: ResMut<Assets<Image>>,
     mut buffers: ResMut<Assets<ShaderStorageBuffer>>,
 ) {
-    let buffer_size = std::mem::size_of::<f32>() * GRID_SIZE * BUFFER_LEN * BUFFER_LEN
+    // Datastrip Buffers
+    let strip_buffer_size = std::mem::size_of::<f32>() * STRIP_SIZE * STRIP_COUNT
+        + std::mem::size_of::<i32>() * STRIP_SIZE * STRIP_COUNT;
+
+    let mut strip_buffer_1 = ShaderStorageBuffer::new(
+        &vec![0u8; strip_buffer_size],
+        RenderAssetUsages::RENDER_WORLD,
+    );
+    strip_buffer_1.buffer_description.usage |= BufferUsages::COPY_SRC;
+    
+    let mut strip_buffer_2 = ShaderStorageBuffer::new(
+        &vec![0u8; strip_buffer_size],
+        RenderAssetUsages::RENDER_WORLD,
+    );
+    strip_buffer_2.buffer_description.usage |= BufferUsages::COPY_SRC;
+
+    let strip_buffer_1_handle = buffers.add(strip_buffer_1);
+    let strip_buffer_2_handle = buffers.add(strip_buffer_2);
+    
+    // DataGrid buffers
+
+    let grid_buffer_size = std::mem::size_of::<f32>() * GRID_SIZE * BUFFER_LEN * BUFFER_LEN
         + std::mem::size_of::<i32>() * GRID_SIZE * BUFFER_LEN * BUFFER_LEN;
 
-    let mut buffer1 =
-        ShaderStorageBuffer::new(&vec![0u8; buffer_size], RenderAssetUsages::RENDER_WORLD);
-    buffer1.buffer_description.usage |= BufferUsages::COPY_SRC;
+    let mut grid_buffer_1 = ShaderStorageBuffer::new(
+        &vec![0u8; grid_buffer_size],
+        RenderAssetUsages::RENDER_WORLD,
+    );
+    grid_buffer_1.buffer_description.usage |= BufferUsages::COPY_SRC;
 
-    let mut buffer2 =
-        ShaderStorageBuffer::new(&vec![0u8; buffer_size], RenderAssetUsages::RENDER_WORLD);
-    buffer2.buffer_description.usage |= BufferUsages::COPY_SRC;
+    let mut grid_buffer_2 = ShaderStorageBuffer::new(
+        &vec![0u8; grid_buffer_size],
+        RenderAssetUsages::RENDER_WORLD,
+    );
+    grid_buffer_2.buffer_description.usage |= BufferUsages::COPY_SRC;
 
-    let buffer1_handle = buffers.add(buffer1);
-    let buffer2_handle = buffers.add(buffer2);
+    let grid_buffer_1_handle = buffers.add(grid_buffer_1);
+    let grid_buffer_2_handle = buffers.add(grid_buffer_2);
 
-    let size = Extent3d {
+    // Texture buffers
+
+    let texture_size = Extent3d {
         width: BUFFER_LEN as u32,
         height: BUFFER_LEN as u32,
         ..default()
@@ -164,7 +188,7 @@ fn setup(
 
     let mut create_texture_image = || {
         let mut image = Image::new_fill(
-            size,
+            texture_size,
             TextureDimension::D2,
             &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             TextureFormat::Rgba32Float,
@@ -182,6 +206,8 @@ fn setup(
     let texture_buffer_a3 = create_texture_image();
     let texture_buffer_b3 = create_texture_image();
     let result = create_texture_image();
+
+    // Grad Texture
 
     let mut grad_texture = Image::new_fill(
         Extent3d {
@@ -215,8 +241,10 @@ fn setup(
         tex_buffer_a3: texture_buffer_a3,
         tex_buffer_b3: texture_buffer_b3,
         result,
-        data_buffer_a: buffer1_handle,
-        data_buffer_b: buffer2_handle,
+        grid_buffer_a: grid_buffer_1_handle,
+        grid_buffer_b: grid_buffer_2_handle,
+        strip_buffer_a: strip_buffer_1_handle,
+        strip_buffer_b: strip_buffer_2_handle,
         grad_texture: grad_texture_handle,
     });
 }
@@ -231,7 +259,7 @@ fn update_uniform_buffer(
     }
 }
 
-fn load_shaders(app: &mut App) {
+fn load_common_shaders(app: &mut App) {
     load_internal_asset!(app, COMMON_HANDLE, "shaders/common.wgsl", Shader::from_wgsl);
     load_internal_asset!(
         app,

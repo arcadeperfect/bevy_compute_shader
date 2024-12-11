@@ -5,7 +5,7 @@ use bevy::{
         extract_resource::ExtractResourcePlugin,
         render_resource::*,
         renderer::RenderQueue,
-    },
+    }, window::WindowResolution,
 };
 use bytemuck::{Pod, Zeroable};
 use cam_controller::CameraController;
@@ -24,6 +24,7 @@ mod parameters;
 mod pipeline;
 mod resources;
 mod bind_groups;
+mod data_structures;
 
 fn main() {
     App::new()
@@ -31,7 +32,14 @@ fn main() {
         .insert_resource(Gradients::default())
         .add_systems(Startup, setup)
         .add_plugins((
-            DefaultPlugins,
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    mode: bevy::window::WindowMode::Windowed,
+                    resolution: WindowResolution::new(1920., 1080.),
+                    ..default()
+                }),
+                ..default()
+            }),
             cam_controller::CameraControllerPlugin,
             compute_plugin::ComputeShaderPlugin,
             ExtractResourcePlugin::<Gradients>::default(),
@@ -48,17 +56,17 @@ fn setup(mut commands: Commands) {
 }
 
 
-#[derive(Debug, Clone)]
-struct ShaderConfig {
-    // shader_handle: Handle<Shader>,
-    shader_path: &'static str,
-    iterations: u32,
-}
+// #[derive(Debug, Clone)]
+// struct ShaderConfig {
+//     // shader_handle: Handle<Shader>,
+//     shader_path: &'static str,
+//     iterations: u32,
+// }
 
-#[derive(Copy, Clone, Pod, Zeroable, ShaderType)]
-#[repr(C)]
-struct DataGrid {
-    // This creates a 10x20 grid
-    floats: [[[f32; GRID_SIZE]; BUFFER_LEN]; BUFFER_LEN],
-    ints: [[[i32; GRID_SIZE]; BUFFER_LEN]; BUFFER_LEN],
-}
+// #[derive(Copy, Clone, Pod, Zeroable, ShaderType)]
+// #[repr(C)]
+// struct DataGrid {
+//     // This creates a 10x20 grid
+//     floats: [[[f32; GRID_SIZE]; BUFFER_LEN]; BUFFER_LEN],
+//     ints: [[[i32; GRID_SIZE]; BUFFER_LEN]; BUFFER_LEN],
+// }

@@ -41,8 +41,18 @@ struct Params {
 }
 
 const BUFFER_LEN = 1024u;
+const GRID_SIZE = 8u;
+
+const STRIP_SIZE = 8000u;
+const STRIP_COUNT = 3u;
+
 struct DataGrid{
-    floats: array<array<array<f32, 8>, BUFFER_LEN>, BUFFER_LEN>,
-    ints: array<array<array<i32, 8>, BUFFER_LEN>, BUFFER_LEN>,
+    floats: array<array<array<f32, GRID_SIZE>, BUFFER_LEN>, BUFFER_LEN>,
+    ints: array<array<array<i32, GRID_SIZE>, BUFFER_LEN>, BUFFER_LEN>,
+};
+
+struct DataStrip{
+    floats: array<array<array<f32, STRIP_COUNT>, STRIP_SIZE>, STRIP_COUNT>,
+    ints: array<array<array<i32, STRIP_COUNT>, STRIP_SIZE>, STRIP_COUNT>,
 };
 

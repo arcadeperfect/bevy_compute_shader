@@ -7,7 +7,7 @@ use bevy::{
 };
 use binding_types::{storage_buffer, uniform_buffer};
 
-use crate::{parameters::ParamsUniform, DataGrid, ShaderConfigHolder, EXTRACT_HANDLE};
+use crate::{data_structures::{DataGrid, DataStrip}, parameters::ParamsUniform, ShaderConfigHolder, EXTRACT_HANDLE};
 
 #[derive(Resource)]
 pub struct ComputePipelines {
@@ -36,6 +36,8 @@ impl FromWorld for ComputePipelines {
                     texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
                     storage_buffer::<DataGrid>(false),
                     storage_buffer::<DataGrid>(false),
+                    storage_buffer::<DataStrip>(false),
+                    storage_buffer::<DataStrip>(false),
                     texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::ReadOnly),
                 ),
             ),
@@ -52,6 +54,8 @@ impl FromWorld for ComputePipelines {
                     texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
                     storage_buffer::<DataGrid>(false),
                     storage_buffer::<DataGrid>(false),
+                    storage_buffer::<DataStrip>(false),
+                    storage_buffer::<DataStrip>(false),
                     texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::ReadOnly),
                 ),
             ),
@@ -71,7 +75,6 @@ impl FromWorld for ComputePipelines {
                 label: Some("compute".into()),
                 layout: vec![compute_layout.clone()],
                 push_constant_ranges: Vec::new(),
-                // shader: config.shader_handle,
                 shader: shader,
                 shader_defs: Vec::new(),
                 entry_point: "main".into(),

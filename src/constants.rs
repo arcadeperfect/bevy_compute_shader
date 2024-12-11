@@ -6,6 +6,11 @@ pub const EXTRACT_HANDLE: Handle<Shader> = Handle::weak_from_u128(33378847158248
 pub const UTIL_NOISE_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(14378847158248049035);
 pub const UTILS_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(25378847158248049035);
 
-// The length of the buffer sent to the gpu
+
+// these need to match the constance in src/shaders/common.wgsl
+
 pub const BUFFER_LEN: usize = 1024;
 pub const GRID_SIZE: usize = 8;
+
+pub const STRIP_SIZE: usize = 8000;
+pub const STRIP_COUNT: usize = 3;

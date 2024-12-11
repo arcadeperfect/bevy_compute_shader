@@ -26,12 +26,18 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let upos = vec2<i32>(i32(x), i32(y));
     
     let current_1 = textureLoad(itex_1, upos);
+    let current_2 = textureLoad(itex_2, upos);
+
     
-    let distance = current_1.r / 1000.;
-    let walls = f32(grid_a.ints[x][y][0]);
+
+    textureStore(otex, upos, vec4f(current_1));
+
+
+    // let distance = current_1.r / 1000.;
+    // let walls = f32(grid_a.ints[x][y][0]);
     
     
-    textureStore(otex, upos, vec4f(distance + walls, 0., 0., 1.0));
+    // textureStore(otex, upos, vec4f(distance + walls, 0., 0., 1.0));
 
     // textureStore(otex, upos, vec4f(f32(grid_a.ints[x][y][0]), 0., 0., 1.0));
     // textureStore(otex, upos, vec4f(grid_a.floats[x][y][0], 0., 0., 1.0));

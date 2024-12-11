@@ -32,9 +32,12 @@ pub fn prepare_bind_groups(
     });
 
     render_queue.write_buffer(&uniform_buffer, 0, bytes_of(&*params_res));
-
-    let buffer_a = buffers.get(&buffer_container.data_buffer_a).unwrap();
-    let buffer_b = buffers.get(&buffer_container.data_buffer_b).unwrap();
+    
+    let grid_buffer_a = buffers.get(&buffer_container.grid_buffer_a).unwrap();
+    let grid_buffer_b = buffers.get(&buffer_container.grid_buffer_b).unwrap();
+    
+    let strip_buffer_a = buffers.get(&buffer_container.strip_buffer_a).unwrap();
+    let strip_buffer_b = buffers.get(&buffer_container.strip_buffer_b).unwrap();
 
     let image_a1 = images.get(&buffer_container.tex_buffer_a1).unwrap();
     let image_b1 = images.get(&buffer_container.tex_buffer_b1).unwrap();
@@ -58,8 +61,10 @@ pub fn prepare_bind_groups(
                 image_b2.texture_view.into_binding(),
                 image_a3.texture_view.into_binding(),
                 image_b3.texture_view.into_binding(),
-                buffer_a.buffer.as_entire_buffer_binding(),
-                buffer_b.buffer.as_entire_buffer_binding(),
+                grid_buffer_a.buffer.as_entire_buffer_binding(),
+                grid_buffer_b.buffer.as_entire_buffer_binding(),
+                strip_buffer_a.buffer.as_entire_buffer_binding(),
+                strip_buffer_b.buffer.as_entire_buffer_binding(),
                 gradient_image.texture_view.into_binding(),
             )),
         ),
@@ -75,8 +80,10 @@ pub fn prepare_bind_groups(
                 image_a2.texture_view.into_binding(),
                 image_b3.texture_view.into_binding(),
                 image_a3.texture_view.into_binding(),
-                buffer_a.buffer.as_entire_buffer_binding(),
-                buffer_b.buffer.as_entire_buffer_binding(),
+                grid_buffer_a.buffer.as_entire_buffer_binding(),
+                grid_buffer_b.buffer.as_entire_buffer_binding(),
+                strip_buffer_a.buffer.as_entire_buffer_binding(),
+                strip_buffer_b.buffer.as_entire_buffer_binding(),
                 gradient_image.texture_view.into_binding(),
             )),
         ),
@@ -91,8 +98,10 @@ pub fn prepare_bind_groups(
             image_a2.texture_view.into_binding(),
             image_a3.texture_view.into_binding(),
             result_image.texture_view.into_binding(),
-            buffer_a.buffer.as_entire_buffer_binding(),
-            buffer_b.buffer.as_entire_buffer_binding(),
+            grid_buffer_a.buffer.as_entire_buffer_binding(),
+            grid_buffer_b.buffer.as_entire_buffer_binding(),
+            strip_buffer_a.buffer.as_entire_buffer_binding(),
+            strip_buffer_b.buffer.as_entire_buffer_binding(),
             gradient_image.texture_view.into_binding(),
         )),
     );
@@ -105,8 +114,10 @@ pub fn prepare_bind_groups(
             image_b2.texture_view.into_binding(),
             image_b3.texture_view.into_binding(),
             result_image.texture_view.into_binding(),
-            buffer_a.buffer.as_entire_buffer_binding(),
-            buffer_b.buffer.as_entire_buffer_binding(),
+            grid_buffer_a.buffer.as_entire_buffer_binding(),
+            grid_buffer_b.buffer.as_entire_buffer_binding(),
+            strip_buffer_a.buffer.as_entire_buffer_binding(),
+            strip_buffer_b.buffer.as_entire_buffer_binding(),
             gradient_image.texture_view.into_binding(),
         )),
     );
