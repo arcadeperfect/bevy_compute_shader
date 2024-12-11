@@ -55,6 +55,10 @@ impl Plugin for ComputeShaderPlugin {
                 shader_path: "shaders/ca_post.wgsl",
                 iterations: 1,
             },
+            ShaderConfig {
+                shader_path: "shaders/jump_flood_prepare.wgsl",
+                iterations: 1,
+            },
         ];
 
         app.insert_resource(ShaderConfigHolder { shader_configs });

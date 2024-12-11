@@ -16,8 +16,6 @@ pub struct ComputePipelines {
     pub final_pass: CachedComputePipelineId,
 }
 
-const SHADER_ASSET_PATH: &str = "shaders/generate_circle.wgsl";
-
 impl FromWorld for ComputePipelines {
     fn from_world(world: &mut World) -> Self {
         // let shader: Handle<Shader> = world.load_asset(SHADER_ASSET_PATH);

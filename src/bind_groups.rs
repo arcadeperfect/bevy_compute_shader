@@ -114,6 +114,8 @@ pub fn prepare_bind_group_selection(
     let mut total_iterations = 0;
     let mut node: u32 = 0;
 
+    // println!("{}", shader_configurator.shader_configs.len());
+
     for _ in &pipelines.pipeline_configs {
         let mut node_selections = Vec::new();
 

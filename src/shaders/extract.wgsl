@@ -62,34 +62,37 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
 
     let upos = vec2<i32>(i32(x), i32(y));
-    
     let current = textureLoad(input_texture, upos);
 
-    let dist_to_center = input_grid.floats[x][y][0];
-    let deformed_radius = input_grid.floats[x][y][2];
-    // let normd_dist = input_grid.floats[x][y][3];
+    textureStore(output_texture, upos, current);
+    
+    // let current = textureLoad(input_texture, upos);
 
-    var v = select(0., 1., dist_to_center <= deformed_radius);
-    let caves = current.r;
-    v = clamp(v - caves, 0., 1.);
+    // let dist_to_center = input_grid.floats[x][y][0];
+    // let deformed_radius = input_grid.floats[x][y][2];
+    // // let normd_dist = input_grid.floats[x][y][3];
+
+    // var v = select(0., 1., dist_to_center <= deformed_radius);
+    // let caves = current.r;
+    // v = clamp(v - caves, 0., 1.);
    
 
-    // let c1 = vec4f(1.0, 0.0, 0.0, 1.0);
-    // let c2 = vec4f(0.0, 1.0, 0.0, 1.0);
-    // let c = mix(c1, c2, normd_dist);
+    // // let c1 = vec4f(1.0, 0.0, 0.0, 1.0);
+    // // let c2 = vec4f(0.0, 1.0, 0.0, 1.0);
+    // // let c = mix(c1, c2, normd_dist);
  
+    // // var result = vec4f(v) * c;
+    // // result.a = 1.;
+
+    // // let t = u32(normd_dist * 255.); // Convert 0-1 to 0-255 for texture lookup
+    // let t = u32(dist_to_center * 255.); // Convert 0-1 to 0-255 for texture lookup
+    // var c = textureLoad(grad_texture, vec2<i32>(i32(t), 0));
+    // // c = pow(c, 2.0);
+    // c = c * c;
     // var result = vec4f(v) * c;
     // result.a = 1.;
 
-    // let t = u32(normd_dist * 255.); // Convert 0-1 to 0-255 for texture lookup
-    let t = u32(dist_to_center * 255.); // Convert 0-1 to 0-255 for texture lookup
-    var c = textureLoad(grad_texture, vec2<i32>(i32(t), 0));
-    // c = pow(c, 2.0);
-    c = c * c;
-    var result = vec4f(v) * c;
-    result.a = 1.;
-
-    textureStore(output_texture, upos, result);
+    // textureStore(output_texture, upos, result);
 
 }
 
