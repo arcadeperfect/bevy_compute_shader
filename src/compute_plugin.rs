@@ -56,8 +56,16 @@ impl Plugin for ComputeShaderPlugin {
                 iterations: 1,
             },
             ShaderConfig {
+                shader_path: "shaders/domain_warp_2.wgsl",
+                iterations: 5,
+            },
+            ShaderConfig {
                 shader_path: "shaders/jump_flood_prepare.wgsl",
                 iterations: 1,
+            },
+            ShaderConfig {
+                shader_path: "shaders/jump_flood_run.wgsl",
+                iterations: 30,
             },
         ];
 

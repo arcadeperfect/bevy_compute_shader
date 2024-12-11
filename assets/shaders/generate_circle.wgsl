@@ -105,5 +105,4 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         dist_to_edge / deformed_radius
         ));   
     input_grid.ints[upos.x][upos.y][0] = v;
-
 } 

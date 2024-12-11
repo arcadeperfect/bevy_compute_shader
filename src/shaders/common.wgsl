@@ -32,9 +32,12 @@ struct Params {
 
     // cave domain warp
     domain_warp_2_amount_a: f32,
-    domain_warp_2_Scale_a: f32,
-    domain_warp_2_Amount_b: f32,
-    domain_warp_2_Scale2_b: f32,
+    domain_warp_2_scale_a: f32,
+    domain_warp_2_amount_b: f32,
+    domain_warp_2_scale_b: f32,
+
+    misc_f: f32,
+    misc_i: i32,
 }
 
 const BUFFER_LEN = 1024u;

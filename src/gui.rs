@@ -104,7 +104,7 @@ fn ui_system(
                 );
 
                 ui.add(egui::Slider::new(&mut params.misc_f, 10.0..=70.).text("misc f"));
-                ui.add(egui::Slider::new(&mut params.misc_i, 10..=70).text("misc i"));
+                ui.add(egui::Slider::new(&mut params.misc_i, 1..=2000).text("misc i"));
 
                 gradient_editor(ui, &mut gradients.gradient);
 
