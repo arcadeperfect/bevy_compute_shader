@@ -175,8 +175,12 @@ fn setup(
         images.add(image)
     };
 
-    let texture_buffer_a = create_texture_image();
-    let texture_buffer_b = create_texture_image();
+    let texture_buffer_a1 = create_texture_image();
+    let texture_buffer_b1 = create_texture_image();
+    let texture_buffer_a2 = create_texture_image();
+    let texture_buffer_b2 = create_texture_image();
+    let texture_buffer_a3 = create_texture_image();
+    let texture_buffer_b3 = create_texture_image();
     let result = create_texture_image();
 
     let mut grad_texture = Image::new_fill(
@@ -204,8 +208,12 @@ fn setup(
     ));
 
     commands.insert_resource(ImageBufferContainer {
-        tex_buffer_a: texture_buffer_a,
-        tex_buffer_b: texture_buffer_b,
+        tex_buffer_a1: texture_buffer_a1,
+        tex_buffer_b1: texture_buffer_b1,
+        tex_buffer_a2: texture_buffer_a2,
+        tex_buffer_b2: texture_buffer_b2,
+        tex_buffer_a3: texture_buffer_a3,
+        tex_buffer_b3: texture_buffer_b3,
         result,
         data_buffer_a: buffer1_handle,
         data_buffer_b: buffer2_handle,

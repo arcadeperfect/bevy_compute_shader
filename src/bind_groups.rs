@@ -36,8 +36,12 @@ pub fn prepare_bind_groups(
     let buffer_a = buffers.get(&buffer_container.data_buffer_a).unwrap();
     let buffer_b = buffers.get(&buffer_container.data_buffer_b).unwrap();
 
-    let image_a = images.get(&buffer_container.tex_buffer_a).unwrap();
-    let image_b = images.get(&buffer_container.tex_buffer_b).unwrap();
+    let image_a1 = images.get(&buffer_container.tex_buffer_a1).unwrap();
+    let image_b1 = images.get(&buffer_container.tex_buffer_b1).unwrap();
+    let image_a2 = images.get(&buffer_container.tex_buffer_a2).unwrap();
+    let image_b2 = images.get(&buffer_container.tex_buffer_b2).unwrap();
+    let image_a3 = images.get(&buffer_container.tex_buffer_a3).unwrap();
+    let image_b3 = images.get(&buffer_container.tex_buffer_b3).unwrap();
     let result_image = images.get(&buffer_container.result).unwrap();
     let gradient_image = images.get(&buffer_container.grad_texture).unwrap();
 
@@ -48,8 +52,8 @@ pub fn prepare_bind_groups(
             &pipeline.layout,
             &BindGroupEntries::sequential((
                 uniform_buffer.as_entire_buffer_binding(),
-                image_a.texture_view.into_binding(),
-                image_b.texture_view.into_binding(),
+                image_a1.texture_view.into_binding(),
+                image_b1.texture_view.into_binding(),
                 buffer_a.buffer.as_entire_buffer_binding(),
                 buffer_b.buffer.as_entire_buffer_binding(),
                 gradient_image.texture_view.into_binding(),
@@ -61,8 +65,8 @@ pub fn prepare_bind_groups(
             &pipeline.layout,
             &BindGroupEntries::sequential((
                 uniform_buffer.as_entire_buffer_binding(),
-                image_b.texture_view.into_binding(),
-                image_a.texture_view.into_binding(),
+                image_b1.texture_view.into_binding(),
+                image_a1.texture_view.into_binding(),
                 buffer_a.buffer.as_entire_buffer_binding(),
                 buffer_b.buffer.as_entire_buffer_binding(),
                 gradient_image.texture_view.into_binding(),
@@ -75,7 +79,7 @@ pub fn prepare_bind_groups(
         &pipeline.layout,
         &BindGroupEntries::sequential((
             uniform_buffer.as_entire_buffer_binding(),
-            image_a.texture_view.into_binding(),
+            image_a1.texture_view.into_binding(),
             result_image.texture_view.into_binding(),
             buffer_a.buffer.as_entire_buffer_binding(),
             buffer_b.buffer.as_entire_buffer_binding(),
@@ -87,7 +91,7 @@ pub fn prepare_bind_groups(
         &pipeline.layout,
         &BindGroupEntries::sequential((
             uniform_buffer.as_entire_buffer_binding(),
-            image_b.texture_view.into_binding(),
+            image_b1.texture_view.into_binding(),
             result_image.texture_view.into_binding(),
             buffer_a.buffer.as_entire_buffer_binding(),
             buffer_b.buffer.as_entire_buffer_binding(),

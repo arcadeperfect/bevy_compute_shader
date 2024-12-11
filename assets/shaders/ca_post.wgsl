@@ -68,10 +68,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     
     // Set up parameters for second domain warp (cave warp)
     let warp_params = DomainWarpParams(
-        params.domain_warp_2_scale_1,
-        params.domain_warp_2_amount_1,
-        params.domain_warp_2_scale_2,
-        params.domain_warp_2_amount_2,
+        params.domain_warp_2_scale_a,
+        params.domain_warp_2_amount_a,
+        params.domain_warp_2_scale_b,
+        params.domain_warp_2_amount_b,
         0.0,  // offset_x
         0.0   // offset_y
     );
@@ -85,5 +85,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Preserve other channels from the current texture
     let current = textureLoad(input_texture, upos);
     
+    
+
+
     textureStore(output_texture, upos, vec4<f32>(warped_value, current.g, current.b, current.a));
 }

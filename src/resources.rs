@@ -31,8 +31,12 @@ impl Default for Gradients {
 
 #[derive(Resource, ExtractResource, Clone)]
 pub struct ImageBufferContainer {
-    pub tex_buffer_a: Handle<Image>,
-    pub tex_buffer_b: Handle<Image>,
+    pub tex_buffer_a1: Handle<Image>,
+    pub tex_buffer_b1: Handle<Image>,
+    pub tex_buffer_a2: Handle<Image>,
+    pub tex_buffer_b2: Handle<Image>,
+    pub tex_buffer_a3: Handle<Image>,
+    pub tex_buffer_b3: Handle<Image>,
     pub result: Handle<Image>,
     pub data_buffer_a: Handle<ShaderStorageBuffer>,
     pub data_buffer_b: Handle<ShaderStorageBuffer>,

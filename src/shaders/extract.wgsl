@@ -20,13 +20,15 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
 
     let upos = vec2<i32>(i32(x), i32(y));
+    
     let current = textureLoad(input_texture, upos);
+    // textureStore(output_texture, upos, current);
 
     // let n = current.r / i32(params.misc_i);
     let n = current.r / 1000.;
 
-    // textureStore(output_texture, upos, vec4f(n,n,n,1.0));
+    textureStore(output_texture, upos, vec4f(n,n,n,1.0));
 
-    let e = grid_b.floats[x][y][0];
-    textureStore(output_texture, upos, vec4f(e,e,e,1.0));
+    // let e = grid_b.floats[x][y][0];
+    // textureStore(output_texture, upos, vec4f(e,e,e,1.0));
 }

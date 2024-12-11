@@ -75,6 +75,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
 
     let upos = vec2<i32>(i32(x), i32(y));
+    // textureStore(output_texture, upos, textureLoad(input_texture, upos));
+
     let current = textureLoad(input_texture, upos);
     let step = i32(current.a);
     if(step < 2){
