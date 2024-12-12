@@ -80,6 +80,7 @@ fn noise2(v: vec2f) -> f32 {
 //     return f / 0.9375;
 // }
 
+// fmb with fixed lacunarity
 fn fbm(p1: vec2f) -> f32 {
     var m2: mat2x2f = mat2x2f(vec2f(0.8, 0.6), vec2f(-0.6, 0.8));
     var f: f32 = 0.;
@@ -93,6 +94,7 @@ fn fbm(p1: vec2f) -> f32 {
     return f / 0.9844; // Updated normalization factor
 }
 
+// fmb with dynamic lacunarity
 fn fbml(p1: vec2f, l: f32) -> f32 {
     var m2: mat2x2f = mat2x2f(vec2f(0.8, 0.6), vec2f(-0.6, 0.8));
     var f: f32 = 0.;

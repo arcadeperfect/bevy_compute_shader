@@ -12,5 +12,5 @@ pub const UTILS_SHADER_HANDLE: Handle<Shader> = Handle::weak_from_u128(253788471
 pub const BUFFER_LEN: usize = 1024;
 pub const GRID_SIZE: usize = 8;
 
-pub const STRIP_SIZE: usize = 8000;
+pub const STRIP_SIZE: usize = 8192;
 pub const STRIP_COUNT: usize = 3;

@@ -1,6 +1,7 @@
 #import compute::noise
 #import compute::utils
-#import compute::common::{Params, BUFFER_LEN, DataGrid, DataStrip}
+#import compute::anoise::psrdnoise2
+#import compute::common::{Params, BUFFER_LEN, STRIP_SIZE, DataGrid, DataStrip}
 
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -16,18 +17,36 @@
 @group(0) @binding(10) var<storage, read_write> strip_b: DataStrip;
 @group(0) @binding(11) var grad_tex: texture_storage_2d<rgba32float, read>;
 
-@compute @workgroup_size(16, 16)
+fn linearToCircle(index: f32, total_steps: f32) -> vec2<f32> {
+
+    var t = index / total_steps;
+    var a = t * 2.0 * 3.14159265359;
+    
+    return vec2<f32>(cos(a), sin(a));
+}
+
+@compute @workgroup_size(256,1,1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let x = global_id.x;
-    let y = global_id.y;
-    
-    if (x >= params.dimensions || y >= params.dimensions) {
+    let fx = f32(x);
+    if (x >= STRIP_SIZE) {  // or however you pass the length
         return;
     }
     
-    let upos = vec2<i32>(i32(x), i32(y)); 
-
     
 
+    let coord = linearToCircle(fx, f32(STRIP_SIZE));
+
+    let npos = coord * params.noise_freq * 2.;
+
+    // let nze = noise::fbml(npos, params.noise_lacunarity );
+    // let nze = noise::noise2(vec2f(f32(x)/1000., 0.));
+    let period = f32(params.misc_f * 10000.);
+    let nze = psrdnoise2(npos, vec2f(period, period), 0.);
+
+    strip_a.floats[0][x] = nze.x;
+    strip_a.floats[1][x] = nze.y;
+    strip_a.floats[2][x] = nze.z;
+    
 }

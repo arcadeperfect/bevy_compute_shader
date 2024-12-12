@@ -2,7 +2,7 @@
 
 #import compute::noise
 #import compute::utils
-#import compute::common::{Params, BUFFER_LEN, DataGrid}
+#import compute::common::{Params, BUFFER_LEN, DataGrid, DataStrip}
 
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var itex_1: texture_storage_2d<rgba32float, read>;
@@ -11,7 +11,9 @@
 @group(0) @binding(4) var otex: texture_storage_2d<rgba32float, write>;
 @group(0) @binding(5) var<storage, read_write> grid_a: DataGrid;
 @group(0) @binding(6) var<storage, read_write> grid_b: DataGrid;
-@group(0) @binding(7) var grad_texture: texture_storage_2d<rgba32float, read>;
+@group(0) @binding(7) var<storage, read_write> strip_a: DataStrip;
+@group(0) @binding(8) var<storage, read_write> strip_b: DataStrip;
+@group(0) @binding(9) var grad_texture: texture_storage_2d<rgba32float, read>;
 
 
 @compute @workgroup_size(16, 16)
@@ -25,28 +27,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     let upos = vec2<i32>(i32(x), i32(y));
     
-    let current_1 = textureLoad(itex_1, upos);
-    let current_2 = textureLoad(itex_2, upos);
+    var current_1 = textureLoad(itex_1, upos);
+    // let current_2 = textureLoad(itex_2, upos);
+    // let current_3 = textureLoad(itex_3, upos);
 
     
-
-    textureStore(otex, upos, vec4f(current_1));
-
-
-    // let distance = current_1.r / 1000.;
-    // let walls = f32(grid_a.ints[x][y][0]);
-    
-    
-    // textureStore(otex, upos, vec4f(distance + walls, 0., 0., 1.0));
-
-    // textureStore(otex, upos, vec4f(f32(grid_a.ints[x][y][0]), 0., 0., 1.0));
-    // textureStore(otex, upos, vec4f(grid_a.floats[x][y][0], 0., 0., 1.0));
-    
-    // let n = current_1.r / i32(params.misc_i);
-    // let n = current_1.r / 1000.;
-
-    // textureStore(otex, upos, vec4f(n,n,n,1.0));
-
-    // let e = grid_b.floats[x][y][0];
-    // textureStore(output_texture, upos, vec4f(e,e,e,1.0));
+    // let v = strip_a.floats[0][0];
+    // let v = grid_a.floats[0][0][0];
+    current_1.a = 1.0;
+    // current_1.g = 1.0;
+    textureStore(otex, upos, current_1);
 }

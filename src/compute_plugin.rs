@@ -14,7 +14,7 @@ use bevy::{
 
 use crate::{
     bind_groups::{prepare_bind_group_selection, prepare_bind_groups},
-    compute_node::ComputeNode,
+    compute_node::{ComputeNode, ComputeNodeMode},
     constants::*,
     data_structures::ShaderConfig,
     gradient_editor::update_gradient_texture,
@@ -35,7 +35,13 @@ impl Plugin for ComputeShaderPlugin {
     fn build(&self, app: &mut App) {
         let shader_configs = vec![
             ShaderConfig {
-                shader_path: "shaders/generate_circle.wgsl",
+                shader_path: "shaders/init_generate_heights.wgsl",
+                shader_mode: ComputeNodeMode::Compute1D(STRIP_SIZE),
+                iterations: 1,
+            },
+            ShaderConfig {
+                shader_path: "shaders/init_generate_circle.wgsl",
+                shader_mode: ComputeNodeMode::Compute2D(BUFFER_LEN),
                 iterations: 1,
             },
             // ShaderConfig {
@@ -54,10 +60,11 @@ impl Plugin for ComputeShaderPlugin {
             //     shader_path: "shaders/domain_warp_2.wgsl",
             //     iterations: 1,
             // },
-            ShaderConfig {
-                shader_path: "shaders/solidify.wgsl",
-                iterations: 5,
-            },
+            // ShaderConfig {
+            //     shader_path: "shaders/solidify.wgsl",
+            //     shader_mode: ComputeNodeMode::Compute2D(BUFFER_LEN),
+            //     iterations: 5,
+            // },
             // ShaderConfig {
             //     shader_path: "shaders/jump_flood_prepare.wgsl",
             //     iterations: 1,
@@ -111,7 +118,8 @@ impl Plugin for ComputeShaderPlugin {
                 label,
                 ComputeNode {
                     pipeline_index: index,
-                    is_final: false,
+                    mode: ComputeNodeMode::Compute2D(BUFFER_LEN),
+                    // is_final: false,
                 },
             );
         }
@@ -123,7 +131,7 @@ impl Plugin for ComputeShaderPlugin {
             final_label,
             ComputeNode {
                 pipeline_index: 0,
-                is_final: true,
+                mode: ComputeNodeMode::Extract,
             },
         );
 
@@ -271,6 +279,12 @@ fn load_common_shaders(app: &mut App) {
         app,
         UTILS_SHADER_HANDLE,
         "shaders/utils/utils.wgsl",
+        Shader::from_wgsl
+    );
+    load_internal_asset!(
+        app,
+        UTILS_SHADER_HANDLE,
+        "shaders/utils/anal_noise.wgsl",
         Shader::from_wgsl
     );
 

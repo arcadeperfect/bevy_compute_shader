@@ -5,14 +5,17 @@ use bevy::
 ;
 use bytemuck::{Pod, Zeroable};
 
+use crate::compute_node::ComputeNodeMode;
 use crate::{BUFFER_LEN, GRID_SIZE};
 use crate::constants::*;
 
 
-#[derive(Debug, Clone)]
+// #[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ShaderConfig {
     // shader_handle: Handle<Shader>,
     pub shader_path: &'static str,
+    pub shader_mode: ComputeNodeMode,
     pub iterations: u32,
 }
 
