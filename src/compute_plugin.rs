@@ -44,10 +44,11 @@ impl Plugin for ComputeShaderPlugin {
                 shader_mode: ComputeNodeMode::Compute2D(BUFFER_LEN),
                 iterations: 1,
             },
-            // ShaderConfig {
-            //     shader_path: "shaders/domain_warp_1.wgsl",
-            //     iterations: 5,
-            // },
+            ShaderConfig {
+                shader_path: "shaders/domain_warp_1.wgsl",
+                shader_mode: ComputeNodeMode::Compute2D(BUFFER_LEN),
+                iterations: 5,
+            },
             // ShaderConfig {
             //     shader_path: "shaders/ca_prepare.wgsl",
             //     iterations: 1,

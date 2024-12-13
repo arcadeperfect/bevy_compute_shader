@@ -37,12 +37,13 @@ fn ui_system(
                 ui.add(egui::Slider::new(&mut params.noise_amplitude, 0.0..=5.).text("amplitude"));
                 ui.add(egui::Slider::new(&mut params.noise_freq, 0.0..=1.).text("frequency"));
                 ui.add(egui::Slider::new(&mut params.noise_offset, 0.0..=20.).text("offset"));
+                ui.add(egui::Slider::new(&mut params.noise_octaves, 1..=20).text("octaves"));
                 ui.add(
                     egui::Slider::new(&mut params.noise_lacunarity, 0.0..=4.).text("lacunarity"),
                 );
                 ui.add(egui::Slider::new(&mut params.power_bias, 0.0..=6.).text("power bias"));
-                ui.add(egui::Slider::new(&mut params.flatness, 0.0..=6.).text("flatness"));
-                ui.add(egui::Slider::new(&mut params.steepness, 0.0..=6.).text("steepness"));
+                ui.add(egui::Slider::new(&mut params.flatness, 0.0..=1.).text("flatness"));
+                ui.add(egui::Slider::new(&mut params.steepness, 0.0..=1.).text("steepness"));
                 ui.add(egui::Slider::new(&mut params.mix, 0.0..=1.).text("mix"));
                 ui.add(
                     egui::Slider::new(&mut params.domain_warp_1_amount_a, 0.0..=0.2)
@@ -103,7 +104,7 @@ fn ui_system(
                         .text("warp 2 scale 1"),
                 );
 
-                ui.add(egui::Slider::new(&mut params.misc_f, 10.0..=70.).text("misc f"));
+                ui.add(egui::Slider::new(&mut params.misc_f, 0.0..=3.).text("misc f"));
                 ui.add(egui::Slider::new(&mut params.misc_i, 1..=2000).text("misc i"));
 
                 // gradient_editor(ui, &mut gradients.gradient);

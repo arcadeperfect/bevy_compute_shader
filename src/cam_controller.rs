@@ -1,13 +1,10 @@
 use bevy::prelude::*;
-use bevy::input::mouse::MouseWheel;
 
 // Component to mark the camera we want to control
 #[derive(Component)]
 pub struct CameraController {
     pub move_speed: f32,
     pub zoom_speed: f32,
-    pub min_zoom: f32,
-    pub max_zoom: f32,
 }
 
 impl Default for CameraController {
@@ -15,8 +12,6 @@ impl Default for CameraController {
         Self {
             move_speed: 500.0,
             zoom_speed: 1.0,
-            min_zoom: 0.1,
-            max_zoom: 5.0,
         }
     }
 }
@@ -32,7 +27,6 @@ impl Plugin for CameraControllerPlugin {
 fn camera_controller(
     mut camera_query: Query<(&mut Transform, &CameraController)>,
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut mouse_wheel: EventReader<MouseWheel>,
     time: Res<Time>,
 ) {
     let Ok((mut transform, controller)) = camera_query.get_single_mut() else {
@@ -70,12 +64,4 @@ fn camera_controller(
     // Apply movement based on time delta and speed
     transform.translation += movement * controller.move_speed * time.delta_secs();
     transform.scale += zoom * controller.zoom_speed * time.delta_secs();
-
-    // // Handle mouse wheel for zooming
-    // for event in mouse_wheel.read() {
-    //     let zoom_delta = -event.y * controller.zoom_speed;
-    //     let new_scale = (transform.scale.x + zoom_delta)
-    //         .clamp(controller.min_zoom, controller.max_zoom);
-    //     transform.scale = Vec3::splat(new_scale);
-    // }
 }

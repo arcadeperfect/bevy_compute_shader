@@ -116,3 +116,298 @@ fn psrdnoise2(pos: vec2<f32>, per: vec2<f32>, rot: f32) -> vec3<f32> {
     // Return vec3 with noise value and derivatives
     return 11.0 * vec3<f32>(n, (dn0 + dn1 + dn2).x, (dn0 + dn1 + dn2).y);
 }
+
+
+fn fbma(
+    pos: vec2<f32>,
+    octaves: u32,
+    lacunarity: f32,
+    gain: f32,
+    base_period: f32,
+    rot: f32,
+) -> vec3<f32> {
+    var value = 0.0;
+    var dx = 0.0;
+    var dy = 0.0;
+
+    var amplitude = 1.0;
+    var frequency = 1.0;
+
+    for (var i = 0u; i < octaves; i = i + 1u) {
+        let per = vec2<f32>(base_period * frequency, base_period * frequency);
+        let result = psrdnoise2(pos * frequency, per, rot);
+        // result.x = noise value
+        // result.y = derivative wrt x_scaled
+        // result.z = derivative wrt y_scaled
+
+        // Scale the derivatives back to original space:
+        // d/dx_original = d/dx_scaled * frequency
+        // d/dy_original = d/dy_scaled * frequency
+
+        value = value + result.x * amplitude;
+        dx = dx + (result.y * amplitude * frequency);
+        dy = dy + (result.z * amplitude * frequency);
+
+        amplitude = amplitude * gain;
+        frequency = frequency * lacunarity;
+    }
+
+    return vec3<f32>(value, dx, dy);
+}
+
+fn terrain_gpt(
+    initial_pos: vec2<f32>,
+    octaves: u32,
+    lacunarity: f32,
+    gain: f32,
+    base_period: f32,
+    rot: f32
+) -> f32 {
+    var a = 0.0;   // Accumulated noise value
+    var b = 1.0;   // Amplitude for this octave
+    var d = vec2<f32>(0.0, 0.0); // Accumulated derivatives
+    var p = initial_pos;
+
+    // A rotation matrix to alter the pattern each octave, as in Quílez's code
+    let m = mat2x2<f32>(
+        0.8, -0.6,
+        0.6,  0.8
+    );
+    
+    var frequency = 1.0;
+
+    for (var i = 0u; i < octaves; i = i + 1u) {
+        let per = vec2<f32>(base_period * frequency, base_period * frequency);
+        
+        // psrdnoise2 returns vec3: (noise_value, dx, dy)
+        let n = psrdnoise2(p, per, rot);
+        
+        // Extract derivatives
+        let dx = n.y;
+        let dy = n.z;
+        
+        // Accumulate derivatives
+        d = d + vec2<f32>(dx, dy);
+        
+        // Incorporate derivatives into the fbm accumulation
+        // This formula introduces slope-dependent variation
+        a = a + b * n.x / (1.0 + dot(d, d));
+
+        // Prepare for next octave
+        b = b * gain;
+        frequency = frequency * lacunarity;
+        p = m * p * 2.0; // Rotating and scaling coordinates each octave
+    }
+
+    return a;
+}
+
+fn terrain_claude(
+    pos: vec2<f32>,
+    octaves: u32,
+    lacunarity: f32,
+    gain: f32,
+    base_period: f32,
+    rot: f32,
+) -> f32 {
+    // Initialize accumulation values
+    var value = 0.0;
+    var amplitude = 1.0;
+    var frequency = 1.0;
+    
+    // Track derivatives for gradient contribution
+    var d = vec2<f32>(0.0, 0.0);
+
+    for (var i = 0u; i < octaves; i = i + 1u) {
+        let per = vec2<f32>(base_period * frequency, base_period * frequency);
+        
+        // Get noise value and derivatives
+        let n = psrdnoise2(pos * frequency, per, rot);
+        
+        // Scale derivatives by frequency (as in original)
+        let current_d = vec2<f32>(n.y, n.z) * frequency;
+        
+        // Use gradient contribution to modify amplitude
+        // This is the key technique from the article - modifying contribution
+        // based on accumulated derivatives
+        value += amplitude * n.x / (1.0 + dot(d, d));
+        
+        // Accumulate scaled derivatives for next iteration
+        d += current_d * amplitude;
+        
+        // Standard fbm updates
+        amplitude *= gain;
+        frequency *= lacunarity;
+    }
+
+    return value;
+}
+
+fn terrain_corrected(
+    initial_pos: vec2<f32>,
+    octaves: u32,
+    lacunarity: f32,
+    gain: f32,
+    base_period: f32,
+    rot: f32
+) -> f32 {
+    var a = 0.0;   // Accumulated noise value
+    var b = 1.0;   // Amplitude for this octave
+    var d = vec2<f32>(0.0, 0.0); // Accumulated derivatives
+    var p = initial_pos;
+
+    // Rotation matrix from Quilez's implementation
+    let m = mat2x2<f32>(
+        0.8, -0.6,
+        0.6,  0.8
+    );
+
+    for (var i = 0u; i < octaves; i = i + 1u) {
+        let per = vec2<f32>(base_period, base_period);
+        
+        // Get noise and derivatives
+        let n = psrdnoise2(p, per, rot);
+        
+        // Add to accumulated value using gradient contribution
+        a += b * n.x / (1.0 + dot(d, d));
+        
+        // Accumulate raw derivatives as in original
+        d += vec2<f32>(n.y, n.z);
+        
+        // Prepare for next octave - use matrix rotation like original
+        b *= gain;
+        p = m * p * 2.0;
+    }
+
+    return a;
+}
+
+
+
+/// from claude
+
+fn terrain_advanced(
+    initial_pos: vec2<f32>,
+    octaves: u32,
+    lacunarity: f32,
+    gain: f32,
+    base_period: f32,
+    rot: f32,
+    ridge_offset: f32,  // For ridged noise
+    warp_strength: f32, // For domain warping
+    erosion_factor: f32 // For slope-based erosion
+) -> f32 {
+    // Domain warping - create more organic, flowing patterns
+    var p = initial_pos;
+    let warp = psrdnoise2(p * 0.5, vec2<f32>(base_period), rot);
+    p += vec2<f32>(warp.y, warp.z) * warp_strength;
+
+    var a = 0.0;   // Accumulated noise value
+    var b = 1.0;   // Amplitude for this octave
+    var d = vec2<f32>(0.0, 0.0); // Accumulated derivatives
+    
+    // Rotation matrix with slight modification for more variation
+    let m = mat2x2<f32>(
+        0.8, -0.6,
+        0.6,  0.8
+    );
+
+    // Track weighted frequencies for erosion
+    var freq_weight = 0.0;
+    var total_weight = 0.0;
+
+    for (var i = 0u; i < octaves; i = i + 1u) {
+        let per = vec2<f32>(base_period, base_period);
+        
+        // Get noise and derivatives
+        var n = psrdnoise2(p, per, rot);
+        
+        // Ridged noise modification
+        let ridge = ridge_offset - abs(n.x);
+        let square_ridge = ridge * ridge;
+        
+        // Combine regular and ridged noise
+        let mixed_noise = mix(n.x, square_ridge, 0.5);
+        
+        // Enhanced gradient contribution with erosion
+        let gradient_factor = 1.0 + dot(d, d);
+        let erosion = 1.0 / (1.0 + erosion_factor * gradient_factor);
+        
+        // Weight higher frequencies more in steep areas
+        let freq_contribution = pow(2.0, f32(i));
+        freq_weight += mixed_noise * freq_contribution * erosion;
+        total_weight += freq_contribution * erosion;
+        
+        // Accumulate with enhanced weighting
+        a += b * mixed_noise * erosion;
+        
+        // Accumulate derivatives with ridge modification
+        d += vec2<f32>(n.y, n.z) * sign(n.x);
+        
+        // Prepare for next octave
+        b *= gain;
+        p = m * p * 2.0;
+        
+        // Vary rotation slightly each octave
+        let angle = 0.1 * f32(i);
+        let rot_m = mat2x2<f32>(
+            cos(angle), -sin(angle),
+            sin(angle),  cos(angle)
+        );
+        p = rot_m * p;
+    }
+
+    // Blend between regular fbm and frequency-weighted version
+    let weighted_fbm = freq_weight / total_weight;
+    return mix(a, weighted_fbm, 0.3);
+}
+
+// Helper function to generate more varied terrains by combining multiple noise passes
+fn generate_varied_terrain(
+    pos: vec2<f32>,
+    octaves: u32,
+    base_settings: vec4<f32>, // lacunarity, gain, base_period, rot
+    variation_settings: vec3<f32> // ridge_offset, warp_strength, erosion_factor
+) -> f32 {
+    // First pass - base terrain
+    let base = terrain_advanced(
+        pos,
+        octaves,
+        base_settings.x,
+        base_settings.y,
+        base_settings.z,
+        base_settings.w,
+        variation_settings.x,
+        variation_settings.y,
+        variation_settings.z
+    );
+    
+    // Second pass - larger features with different parameters
+    let large_features = terrain_advanced(
+        pos * 0.5,
+        octaves - 1u,
+        base_settings.x * 0.8,
+        base_settings.y,
+        base_settings.z * 2.0,
+        base_settings.w + 1.0,
+        variation_settings.x * 1.2,
+        variation_settings.y * 0.7,
+        variation_settings.z * 0.5
+    );
+    
+    // Third pass - detail features
+    let details = terrain_advanced(
+        pos * 2.0,
+        octaves - 2u,
+        base_settings.x * 1.2,
+        base_settings.y * 0.7,
+        base_settings.z * 0.5,
+        base_settings.w + 2.0,
+        variation_settings.x * 0.8,
+        variation_settings.y * 1.3,
+        variation_settings.z * 1.5
+    );
+    
+    // Combine the passes with different weights
+    return base * 0.6 + large_features * 0.3 + details * 0.1;
+}

@@ -58,6 +58,12 @@ fn mountain_bias(n: f32) -> f32 {
 
 @compute @workgroup_size(16, 16)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+
+    let amp = params.noise_amplitude;
+    let radius = params.radius;
+    
+
+
     let x = global_id.x;
     let y = global_id.y;
     
@@ -82,80 +88,53 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     );
     
 
-    let index = i32(pos.x * f32(STRIP_SIZE));
-    var v =  strip_a.floats[0][index];
-    v = v * 0.5 + 0.5;
 
-    let solid = select(1.,0., pos.y < v);
+    // // graph the noise for debug
 
-    let dx = strip_a.floats[1][index];  // x derivative
-    let dy = strip_a.floats[2][index];  // x derivative
+    // let index = i32(pos.x * f32(STRIP_SIZE));
+    // var v1 =  strip_a.floats[0][index];
+    // var v2 =  strip_a.floats[1][index];
+    // var v3 =  strip_a.floats[2][index];
+    // var v4 =  strip_b.floats[0][index];
+    // var nze = vec4f(v1,v2,v3,v4);
+
+    // nze = nze * 0.5 + 0.5;
+    // nze = nze * amp;
+    // nze = 1-nze;
     
-    let steepness = sqrt(dx * dx + dy * dy) * 0.1;
+    // let solid1 = select(0.,1., pos.y > nze.x);
+    // let solid2 = select(0.,1., pos.y > nze.y);
+    // let solid3 = select(0.,1., pos.y > nze.z);
+    // let solid4 = select(0.,1., pos.y > nze.w);
 
-    let c = steepness * solid;
 
-    textureStore(otex_1,upos, vec4f(c, 0., 0., 1.));
 
-    // steepness
-
-    // // center coordinates
-    // pos = pos * 2.0 - 1.0;
-    // let angle_radians = atan2(pos.y, pos.x);
-    // var angle_normd = angle_radians / 3.1415926535897932384626433832795;
-    // angle_normd = angle_normd * 0.5 + 0.5;
-    // let angle_mapped = angle_normd * f32(STRIP_SIZE-1);
-    // let index = i32(angle_mapped);    
-    // var nze = strip_a.floats[0][index];
-    // nze = nze * 0.1 * params.radius * params.noise_amplitude;
-
-    // let dist_to_center = length(pos);
-
-    // let rock = select(0., 1., dist_to_center < params.radius + nze);
-    // let v = rock;
+    // // textureStore(otex_1,upos, vec4f(solid4, solid2, solid3, 1.));
     
-    // let dx = strip_a.floats[1][index];  // x derivative
-    // let dy = strip_a.floats[2][index];  // x derivative
+    let centered = pos - 0.5;
+    let angle = atan2(centered.y, centered.x);
     
-    // let steepness = sqrt(dx * dx + dy * dy) * 0.1;
+    // // Convert to 0 to 2π range
+    let angle_positive = angle + 3.14159265359;
+    
+    // Map angle to buffer index (0 to buffer_length-1)
+    let index = i32(angle_positive / (2.0 * 3.14159265359) * f32(STRIP_SIZE));
+    
+    // Clamp index to valid range
+    // let clamped_index = clamp(index, 0, STRIP_SIZE - 1);
 
-
-    // let c = vec4f(steepness * rock, steepness * rock, 0., 1.);
-    // textureStore(otex_1, upos, c);
+    let nze = strip_b.floats[0][index];
     
     
-    // old
-
-    // let seed = vec2f(cos(angle), sin(angle)); 
-    // // var n = noise::fbml((seed * seed_mult * params.noise_freq) + params.noise_offset, params.noise_lacunarity);
-    // // var n = noise::fbm((seed * seed_mult * params.noise_freq) + params.noise_offset);
-    // var n = noise::fbml((seed * seed_mult * params.noise_freq) + params.noise_offset, params.noise_lacunarity);
-
-    // var m = mountain_bias(n) * 0.03;
-    // n = n * 0.03;
-    
-    // n = n * params.noise_amplitude;
-    // m = m * params.noise_amplitude;
-
-    // var result = mix(n, m, params.mix);
-
-    // let deformed_radius = params.radius + result;
-    // let dist_to_center = distance(normd_pos, center);
-    
-    // normd_pos = normd_pos - center;                 // transform so that 0,0 is the center
-    // let mag = length(normd_pos);                    // the distance from this pixel to the center
-    // normd_pos = vec2f(mag, 0.0);                    // create a new vector of the same length, but on the x axis
-    // let edge = vec2f(deformed_radius, 0.0);         // create a new vector on the same axis, at the distance to the edge
-    // var dist_to_edge = edge.x - normd_pos.x;
         
-    // // Only store the distance fields and deformed radius because the edge will be found bt comparing distance
-    // // to deformed radius after domain warping
-    // // this saves the number of things we have to warp
+    // Distance from center
+    let dist = length(centered);
     
-    // textureStore(otex_2, upos, vec4<f32>(
-    //     dist_to_center, 
-    //     dist_to_edge, 
-    //     deformed_radius, 
-    //     dist_to_edge / deformed_radius
-    //     ));   
+    // Deform the radius using noise
+    let deformed_radius = radius + (nze * 0.02 * amp);
+    
+    // Return 1 inside circle, 0 outside (or you could return smooth falloff)
+    let solid = select(0., 1., dist < deformed_radius);
+    
+    textureStore(otex_1,upos, vec4f(solid, 0., 0., 1.));
 } 

@@ -9,6 +9,7 @@ struct Params {
     noise_freq: f32,
     noise_amplitude: f32,
     noise_offset: f32,
+    noise_octaves: i32,
     noise_lacunarity:f32,
     power_bias: f32,
     flatness: f32,

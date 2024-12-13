@@ -52,7 +52,15 @@ fn main() {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn((Camera2d::default(), CameraController::default()));
+    // commands.spawn((Camera2d::default(), CameraController::default()));
+    commands.spawn((
+        Camera2d::default(),
+        CameraController::default(),
+        // Add or modify the Transform component
+        Transform::from_xyz(0.0, 0.0, 0.0)  // Position
+            .with_scale(Vec3::splat(1.5))   // Scale/Zoom
+            .with_rotation(Quat::IDENTITY),  // Rotation
+    ));
 }
 
 

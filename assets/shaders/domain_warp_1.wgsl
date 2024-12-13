@@ -1,6 +1,6 @@
 #import compute::noise
 #import compute::utils
-#import compute::common::{Params, BUFFER_LEN, DataGrid}
+#import compute::common::{Params, BUFFER_LEN, DataGrid, DataStrip}
 
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var itex_1: texture_storage_2d<rgba32float, read>;
@@ -11,8 +11,9 @@
 @group(0) @binding(6) var otex_3: texture_storage_2d<rgba32float, write>;
 @group(0) @binding(7) var<storage, read_write> grid_a: DataGrid;
 @group(0) @binding(8) var<storage, read_write> grid_b: DataGrid;
-@group(0) @binding(9) var grad_tex: texture_storage_2d<rgba32float, read>;
-
+@group(0) @binding(9) var<storage, read_write> strip_a: DataStrip;
+@group(0) @binding(10) var<storage, read_write> strip_b: DataStrip;
+@group(0) @binding(11) var grad_tex: texture_storage_2d<rgba32float, read>;
 /*
 Perform domain warping on the output of the previous step, including to the distance fields (?)
 Warping is applied to itex_2 because that's where the distance fields are stored
@@ -43,7 +44,7 @@ fn sample_with_offset(pos: vec2<i32>, offset: vec2<f32>) -> vec4<f32> {
         i32(clamp(f32(pos.x) + offset.x * dim, 0.0, dim - 1.0)),
         i32(clamp(f32(pos.y) + offset.y * dim, 0.0, dim - 1.0))
     );
-    return textureLoad(itex_2, new_pos);
+    return textureLoad(itex_1, new_pos);
 }
 
 @compute @workgroup_size(16, 16)
@@ -86,5 +87,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Sample the texture with the combined warped coordinates
     let warped_value = sample_with_offset(upos, final_offset);
     
-    textureStore(otex_2, upos, warped_value);
+    // textureStore(otex_2, upos, warped_value);
+    textureStore(otex_1, upos, warped_value);
 }
