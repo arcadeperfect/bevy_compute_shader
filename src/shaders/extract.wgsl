@@ -34,7 +34,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     
     // let v = strip_a.floats[0][0];
     // let v = grid_a.floats[0][0][0];
-    current_1.a = 1.0;
+    // current_1.a = 1.0;
     // current_1.g = 1.0;
-    textureStore(otex, upos, current_1);
+
+
+
+    let out = vec4f(current_1.r,current_1.g,current_1.b,1.0);
+
+    textureStore(otex, upos, out);
 }

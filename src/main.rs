@@ -36,6 +36,7 @@ fn main() {
                 primary_window: Some(Window {
                     mode: bevy::window::WindowMode::Windowed,
                     resolution: WindowResolution::new(1920., 1080.),
+                    position: WindowPosition::At(IVec2::new(0, 0)),
                     ..default()
                 }),
                 ..default()

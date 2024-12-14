@@ -32,18 +32,22 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let upos = vec2<i32>(i32(x), i32(y));    
     let dim = f32(params.dimensions);
 
-    let current_1 = textureLoad(itex_1, upos);
-    let current_2 = textureLoad(itex_2, upos);
+    // let in_1 = textureLoad(itex_1, upos);
+    // let in_2 = textureLoad(itex_2, upos);
     
-    let caves = current_1.r;
-    let normalized_distance_to_edge = current_2.a;
-    let deformed_radius = current_2.b;
+   
     
-    var rock = select(1.0, 0.0, normalized_distance_to_edge < deformed_radius);
+    var rock = textureLoad(itex_1, upos).r;
+    let caves = textureLoad(itex_2, upos).r;
     rock = rock - caves;
     rock = clamp(rock, 0., 1.);
     
+
+
+    // textureStore(otex_1, upos, in_2);
+
+    // textureStore(otex_1, upos, vec4f(1., 1., 0., 1.));
     textureStore(otex_1, upos, vec4f(rock, 0., 0., 1.));
-    textureStore(otex_2,upos, textureLoad(itex_2,upos)); // todo test using the storage buffer to avoid constantly swapping textures
+    // textureStore(otex_2,upos, textureLoad(itex_2,upos)); // todo test using the storage buffer to avoid constantly swapping textures
 
 }

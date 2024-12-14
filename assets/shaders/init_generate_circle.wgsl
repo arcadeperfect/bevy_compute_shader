@@ -1,6 +1,6 @@
 #import compute::noise
 #import compute::utils
-#import compute::common::{Params, BUFFER_LEN, STRIP_SIZE, DataGrid, DataStrip}
+#import compute::common::{Params, BUFFER_LEN, STRIP_SIZE, DataGrid, DataStrip, PI, TAU}
 
 
 @group(0) @binding(0) var<uniform> params: Params;
@@ -111,30 +111,42 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // // textureStore(otex_1,upos, vec4f(solid4, solid2, solid3, 1.));
     
-    let centered = pos - 0.5;
+    var centered = pos - 0.5;
     let angle = atan2(centered.y, centered.x);
     
     // // Convert to 0 to 2π range
-    let angle_positive = angle + 3.14159265359;
+    let angle_positive = angle + PI;
     
     // Map angle to buffer index (0 to buffer_length-1)
-    let index = i32(angle_positive / (2.0 * 3.14159265359) * f32(STRIP_SIZE));
+    let index = i32(angle_positive / TAU * f32(STRIP_SIZE));
     
     // Clamp index to valid range
     // let clamped_index = clamp(index, 0, STRIP_SIZE - 1);
 
     let nze = strip_b.floats[0][index];
     
-    
-        
     // Distance from center
-    let dist = length(centered);
+    let dist_to_center = length(centered);
     
     // Deform the radius using noise
     let deformed_radius = radius + (nze * 0.02 * amp);
     
     // Return 1 inside circle, 0 outside (or you could return smooth falloff)
-    let solid = select(0., 1., dist < deformed_radius);
+    let solid = select(0., 1., dist_to_center < deformed_radius);
     
     textureStore(otex_1,upos, vec4f(solid, 0., 0., 1.));
-} 
+
+    // let dist_to_edge = dist_to_center - deformed_radius;
+    let mag = length(centered);                    // the distance from this pixel to the center
+    centered = vec2f(mag, 0.0);                    // create a new vector of the same length, but on the x axis
+    let edge = vec2f(deformed_radius, 0.0);         // create a new vector on the same axis, at the distance to the edge
+    // let dist_to_edge = distance  centered, edge);   // calculate the distance to the edge
+    var dist_to_edge = edge.x - centered.x;
+    let normalized_dist_to_edge = dist_to_edge / deformed_radius;
+
+    grid_a.floats[x][y][0] = dist_to_center;
+    grid_a.floats[x][y][1] = dist_to_edge;
+    grid_a.floats[x][y][2] = normalized_dist_to_edge;
+    grid_a.floats[x][y][3] = deformed_radius;
+    
+}

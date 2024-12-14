@@ -1,6 +1,6 @@
 #define_import_path compute::utils
 
-const PI: f32 = 3.14159;
+
 
 
 fn remap(value: f32, from_min: f32, from_max: f32, to_min: f32, to_max: f32) -> f32 {

@@ -38,7 +38,7 @@ fn sample_with_offset(pos: vec2<i32>, offset: vec2<f32>) -> vec4<f32> {
         i32(clamp(f32(pos.x) + offset.x * dim, 0.0, dim - 1.0)),
         i32(clamp(f32(pos.y) + offset.y * dim, 0.0, dim - 1.0))
     );
-    return textureLoad(itex_1, new_pos);
+    return textureLoad(itex_2, new_pos);
 }
 
 @compute @workgroup_size(16, 16)
@@ -81,6 +81,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Sample the texture with the combined warped coordinates
     let warped_value = sample_with_offset(upos, final_offset);
     
-    textureStore(otex_1, upos, warped_value);
-    textureStore(otex_2,upos, textureLoad(itex_2,upos)); // todo test using the storage buffer to avoid constantly swapping textures
+    textureStore(otex_2, upos, warped_value);
+    // textureStore(otex_2,upos, textureLoad(itex_2,upos)); // todo test using the storage buffer to avoid constantly swapping textures
 }

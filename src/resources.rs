@@ -10,6 +10,14 @@ use bevy_egui::egui::Color32;
 use crate::{data_structures::ShaderConfig, gradient_editor};
 
 #[derive(Resource, ExtractResource, Clone)]
+pub struct ParamsChanged(pub bool);
+impl Default for ParamsChanged {
+    fn default() -> Self {
+        Self(true)
+    }
+}
+
+#[derive(Resource, ExtractResource, Clone)]
 pub struct Gradients {
     pub gradient: gradient_editor::Gradient,
 }

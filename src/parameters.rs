@@ -1,6 +1,6 @@
 use bevy::{prelude::*, render::{extract_resource::ExtractResource, render_resource::ShaderType}};
 
-#[derive(Resource, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, ExtractResource, ShaderType)]
+#[derive(Resource, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, ExtractResource, ShaderType, PartialEq)]
 #[repr(C)]
 pub struct ParamsUniform {
     pub dimensions: u32,

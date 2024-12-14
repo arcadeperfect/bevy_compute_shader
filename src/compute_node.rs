@@ -8,8 +8,7 @@ use bevy::{
 };
 
 use crate::{
-    constants::*, pipeline::ComputePipelines, BindGroupSelection, GpuBufferBindGroups,
-    ShaderConfigHolder,
+    constants::*, parameters::ParamsUniform, pipeline::ComputePipelines, BindGroupSelection, GpuBufferBindGroups, ParamsChanged, ShaderConfigHolder
 };
 
 #[derive(Clone)]
@@ -26,6 +25,8 @@ pub struct ComputeNode {
     pub mode: ComputeNodeMode,
 }
 
+
+
 impl render_graph::Node for ComputeNode {
     fn run(
         &self,
@@ -39,7 +40,15 @@ impl render_graph::Node for ComputeNode {
         let encoder = render_context.command_encoder();
         let selectors = world.resource::<BindGroupSelection>();
         let shader_configurator = world.resource::<ShaderConfigHolder>();
+        let changed = world.resource::<ParamsChanged>();
 
+        if !changed.0{
+            println!("not changed");
+            return Ok(());
+        }
+            
+        println!("changed");
+        
         match self.mode {
             ComputeNodeMode::Extract => {
                 if let Some(pipeline) = pipeline_cache.get_compute_pipeline(pipelines.final_pass) {
@@ -70,7 +79,7 @@ impl render_graph::Node for ComputeNode {
 
                 if let Some(pipeline) = pipeline_cache.get_compute_pipeline(pipeline_id) {
                     let iters = shader_configurator.shader_configs[self.pipeline_index].iterations;
-
+                    // println!("iters: {}", iters);
                     for iteration in 0..iters {
                         encoder.push_debug_group(&format!(
                             "Compute pass {} iteration {}",
@@ -88,6 +97,7 @@ impl render_graph::Node for ComputeNode {
                                 &[],
                             );
                             pass.set_pipeline(pipeline);
+                            // println!("dispatching iteration {}", iteration);
                             pass.dispatch_workgroups(
                                 ((buffer_len + 15) / 16) as u32,
                                 ((buffer_len + 15) / 16) as u32,

@@ -47,6 +47,9 @@ const GRID_SIZE = 8u;
 const STRIP_SIZE = 8192u;
 const STRIP_COUNT = 3u;
 
+const PI = 3.14159265359;
+const TAU = 6.283185307179586;
+
 struct DataGrid{
     floats: array<array<array<f32, GRID_SIZE>, BUFFER_LEN>, BUFFER_LEN>,
     ints: array<array<array<i32, GRID_SIZE>, BUFFER_LEN>, BUFFER_LEN>,

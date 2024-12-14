@@ -13,14 +13,7 @@ use bevy::{
 };
 
 use crate::{
-    bind_groups::{prepare_bind_group_selection, prepare_bind_groups},
-    compute_node::{ComputeNode, ComputeNodeMode},
-    constants::*,
-    data_structures::ShaderConfig,
-    gradient_editor::update_gradient_texture,
-    parameters::ParamsUniform,
-    pipeline::ComputePipelines,
-    GpuBufferBindGroups, ImageBufferContainer, ShaderConfigHolder,
+    bind_groups::{prepare_bind_group_selection, prepare_bind_groups}, compute_node::{ComputeNode, ComputeNodeMode}, constants::*, data_structures::ShaderConfig, gradient_editor::update_gradient_texture, parameters::ParamsUniform, pipeline::ComputePipelines, GpuBufferBindGroups, ImageBufferContainer, ParamsChanged, ShaderConfigHolder
 };
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, RenderLabel)]
@@ -49,23 +42,26 @@ impl Plugin for ComputeShaderPlugin {
                 shader_mode: ComputeNodeMode::Compute2D(BUFFER_LEN),
                 iterations: 5,
             },
-            // ShaderConfig {
-            //     shader_path: "shaders/ca_prepare.wgsl",
-            //     iterations: 1,
-            // },
-            // ShaderConfig {
-            //     shader_path: "shaders/ca_run.wgsl",
-            //     iterations: 16,
-            // },
-            // ShaderConfig {
-            //     shader_path: "shaders/domain_warp_2.wgsl",
-            //     iterations: 1,
-            // },
-            // ShaderConfig {
-            //     shader_path: "shaders/solidify.wgsl",
-            //     shader_mode: ComputeNodeMode::Compute2D(BUFFER_LEN),
-            //     iterations: 5,
-            // },
+            ShaderConfig {
+                shader_path: "shaders/ca_prepare.wgsl",
+                shader_mode: ComputeNodeMode::Compute2D(BUFFER_LEN),
+                iterations: 1,
+            },
+            ShaderConfig {
+                shader_path: "shaders/ca_run.wgsl",
+                shader_mode: ComputeNodeMode::Compute2D(BUFFER_LEN),
+                iterations: 16,
+            },
+            ShaderConfig {
+                shader_path: "shaders/domain_warp_2.wgsl",
+                shader_mode: ComputeNodeMode::Compute2D(BUFFER_LEN),
+                iterations: 1,
+            },
+            ShaderConfig {
+                shader_path: "shaders/subtract_caves.wgsl",
+                shader_mode: ComputeNodeMode::Compute2D(BUFFER_LEN),
+                iterations: 1,
+            },
             // ShaderConfig {
             //     shader_path: "shaders/jump_flood_prepare.wgsl",
             //     iterations: 1,
@@ -77,11 +73,14 @@ impl Plugin for ComputeShaderPlugin {
         ];
 
         app.insert_resource(ShaderConfigHolder { shader_configs });
+        app.insert_resource(ParamsChanged::default());
         app.add_plugins(ExtractResourcePlugin::<ShaderConfigHolder>::default());
+        app.add_plugins(ExtractResourcePlugin::<ParamsChanged>::default());
 
         load_common_shaders(app);
 
         app.add_systems(Startup, setup);
+        // app.add_systems(PostUpdate, reset_changed);
     }
 
     fn finish(&self, app: &mut App) {
@@ -96,12 +95,14 @@ impl Plugin for ComputeShaderPlugin {
             (
                 update_gradient_texture,
                 update_uniform_buffer,
+                // reset_changed.after(),
                 prepare_bind_groups
                     .in_set(RenderSet::PrepareBindGroups)
                     .run_if(not(resource_exists::<GpuBufferBindGroups>)),
                 prepare_bind_group_selection
                     .in_set(RenderSet::PrepareBindGroups)
                     .after(prepare_bind_groups),
+                reset_changed.in_set(RenderSet::Cleanup),
             ),
         );
 
@@ -266,6 +267,15 @@ fn update_uniform_buffer(
     if let Some(bind_group) = bind_groups {
         render_queue.write_buffer(&bind_group.uniform_buffer, 0, bytemuck::bytes_of(&*params));
     }
+}
+
+fn reset_changed(mut changed: ResMut<ParamsChanged>) {
+    
+    if(changed.0){
+        println!("changed");
+    }
+    
+    changed.0 = false;
 }
 
 fn load_common_shaders(app: &mut App) {
