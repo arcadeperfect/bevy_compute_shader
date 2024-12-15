@@ -11,12 +11,18 @@ struct Params {
     noise_offset: f32,
     noise_octaves: i32,
     noise_lacunarity:f32,
+
+    noise_params_1: NoiseParams,
+
     power_bias: f32,
     flatness: f32,
     steepness: f32,
     mix: f32,
-    noise_warp_amount: f32,
-    noise_warp_scale: f32,
+    // noise_warp_amount: f32,
+    // noise_warp_scale: f32,
+
+
+    domain_warp_1_settings: DomainWarpParams,
 
     // domain warp 1
     domain_warp_1_amount_a: f32,
@@ -39,6 +45,7 @@ struct Params {
 
     misc_f: f32,
     misc_i: i32,
+    botty: f32
 }
 
 const BUFFER_LEN = 1024u;
@@ -60,3 +67,20 @@ struct DataStrip{
     ints: array<array<i32, STRIP_SIZE>, STRIP_COUNT>,
 };
 
+struct NoiseParams{
+    seed: i32,
+    x: f32,
+    y: f32,
+    amplitude: f32,
+    freq: f32,
+    offset: f32,
+    lacunarity: f32,  
+    octaves: i32,
+}
+
+struct DomainWarpParams{
+    amount_a: f32,
+    scale_a: f32,
+    amount_b: f32,
+    scale_b: f32
+}

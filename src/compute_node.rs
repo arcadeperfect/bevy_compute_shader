@@ -43,11 +43,11 @@ impl render_graph::Node for ComputeNode {
         let changed = world.resource::<ParamsChanged>();
 
         if !changed.0{
-            println!("not changed");
+            // println!("not changed");
             return Ok(());
         }
             
-        println!("changed");
+        // println!("changed");
         
         match self.mode {
             ComputeNodeMode::Extract => {

@@ -13,13 +13,17 @@ pub struct ParamsUniform {
     pub noise_offset: f32,
     pub noise_octaves: i32,
     pub noise_lacunarity:f32,
+
+    pub noise_params_1: NoiseParams,
+
     pub power_bias: f32,
     pub flatness: f32,
     pub steepness: f32,
     pub mix: f32,
-    pub noise_warp_amount: f32,
-    pub noise_warp_scale: f32,
+    // pub noise_warp_amount: f32,
+    // pub noise_warp_scale: f32,
 
+    pub domain_warp_1_settings: DomainWarpParams,
     // domain warp 1
     pub domain_warp_1_amount_a: f32,
     pub domain_warp_1_scale_a: f32,
@@ -41,6 +45,7 @@ pub struct ParamsUniform {
 
     pub misc_f: f32,
     pub misc_i: i32,
+    pub botty: f32,
 }
 
 impl Default for ParamsUniform {
@@ -56,12 +61,27 @@ impl Default for ParamsUniform {
             noise_offset: 0.0,
             noise_octaves: 5,
             noise_lacunarity: 2.0,
+            
+            noise_params_1: NoiseParams {
+                seed: 0,
+                x: 0.0,
+                y: 0.0,
+                amplitude: 1.,
+                freq: 0.3,
+                offset: 0.0,
+                lacunarity: 2.,
+                octaves: 5,
+
+            },
+            
             power_bias: 1.8,
             flatness: 1.5,
             steepness: 1.3,
             mix: 0.5,
-            noise_warp_amount: 0.0,
-            noise_warp_scale: 0.0,
+            // noise_warp_amount: 0.0,
+            // noise_warp_scale: 0.0,
+
+            domain_warp_1_settings: DomainWarpParams::default(),
 
             // domain warp 1
             domain_warp_1_amount_a: 0.0,
@@ -84,8 +104,29 @@ impl Default for ParamsUniform {
 
             misc_f: 0.0,
             misc_i: 0,
+            botty: 0.0,
         }
     }
 }
 
+#[repr(C)]
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, ShaderType, PartialEq, Default)]
+pub struct NoiseParams {
+    pub seed: i32,
+    pub x: f32,
+    pub y: f32,
+    pub amplitude: f32,
+    pub freq: f32,
+    pub offset: f32,
+    pub lacunarity: f32,  // Add explicit padding to match WGSL alignment
+    pub octaves: i32,
+}
 
+#[repr(C)]
+#[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, ShaderType, PartialEq, Default)]
+pub struct DomainWarpParams{
+    pub amount_a: f32,
+    pub scale_a: f32,
+    pub amount_b: f32,
+    pub scale_b: f32
+}

@@ -14,11 +14,11 @@
 @group(0) @binding(9) var<storage, read_write> strip_a: DataStrip;
 @group(0) @binding(10) var<storage, read_write> strip_b: DataStrip;
 @group(0) @binding(11) var grad_tex: texture_storage_2d<rgba32float, read>;
+
 /*
 Perform domain warping on the output of the previous step, including to the distance fields (?)
 Warping is applied to itex_2 because that's where the distance fields are stored
 */
-
 
 struct DomainWarpParams {
     scale: f32,
@@ -27,14 +27,14 @@ struct DomainWarpParams {
     offset_y: f32,
 }
 
-fn apply_domain_warp(pos: vec2<f32>, params: DomainWarpParams) -> vec2<f32> {
-    let noise_pos = pos * params.scale;
-    let noise_x = noise::fbm(noise_pos + vec2<f32>(params.offset_x, 0.0));
-    let noise_y = noise::fbm(noise_pos + vec2<f32>(params.offset_x + 3.33, params.offset_y + 2.77));
+fn apply_domain_warp(pos: vec2<f32>, paramss: DomainWarpParams) -> vec2<f32> {
+    let noise_pos = pos * paramss.scale;
+    let noise_x = noise::fbm(noise_pos + vec2<f32>(paramss.offset_x, 0.0));
+    let noise_y = noise::fbm(noise_pos + vec2<f32>(paramss.offset_x + 3.33, paramss.offset_y + 2.77));
     
     return vec2<f32>(
-        noise_x * params.amount,
-        noise_y * params.amount
+        noise_x * paramss.amount,
+        noise_y * paramss.amount
     );
 }
 
@@ -67,7 +67,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let warp1_params = DomainWarpParams(
         params.domain_warp_1_scale_a,
         params.domain_warp_1_amount_a,
-        0.0,
+        params.misc_f * 1.,
         0.0
     );
     let offset1 = apply_domain_warp(pos, warp1_params);

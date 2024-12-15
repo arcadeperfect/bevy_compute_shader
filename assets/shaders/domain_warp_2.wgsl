@@ -57,10 +57,16 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Convert position to 0-1 range for noise generation
     let pos = vec2<f32>(f32(x) / dim, f32(y) / dim);
     
+
+    var noiseParam1 = noise::noise2(pos * params.domain_warp_2_scale_a);
+    var noiseParam2 = noise::noise2(vec2f(pos.x, params.domain_warp_2_amount_a));
+
+
     // First domain warp
     let warp1_params = DomainWarpParams(
-        params.domain_warp_2_scale_a,
-        params.domain_warp_2_amount_a,
+        // params.domain_warp_2_scale_a,
+        noiseParam1,
+        noiseParam2,
         0.0,
         0.0
     );
